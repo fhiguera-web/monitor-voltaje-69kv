@@ -38,7 +38,7 @@
 <body>
 <header>
  <div><h1>Monitor de Voltaje &mdash; Barra 69 kV</h1>
-   <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza solo</div></div>
+   <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza cada ~60 s</div></div>
  <div class="sub" id="clock">--:--:--</div>
 </header>
 <div class="wrap">
@@ -62,6 +62,8 @@
 
 <script>
 let TH=null, NOM=69000;
+// Lee el data.json directo del repo (raw) con anti-cache: se actualiza sin reconstruir Pages.
+const DATA_URL='https://raw.githubusercontent.com/fhiguera-web/monitor-voltaje-69kv/main/data.json';
 const $=id=>document.getElementById(id);
 function kv(x){return (x/1000).toFixed(2);}
 function estadoClass(e){ if(!e)return 's-NORMAL'; if(e.indexOf('TRIP')>=0||e.indexOf('ALARMA')>=0)return 's-AL'; if(e.indexOf('PRE')>=0)return 's-PRE'; return 's-NORMAL';}
@@ -69,7 +71,7 @@ function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return '#f85149'; if(v>=TH
 
 async function tick(){
  try{
-  const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'}); const d=await r.json();
+  const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'}); const d=await r.json();
   TH=d.thresholds; NOM=d.nominal;
   const L=d.live;
   $('v-main').innerHTML=kv(L.v)+' <span class="u">kV</span>';
@@ -135,6 +137,6 @@ function drawChart(H){
  g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
 }
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
-tick(); setInterval(tick,60000);
+tick(); setInterval(tick,30000);
 </script>
 </body></html>
