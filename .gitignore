@@ -1,0 +1,5 @@
+# El repositorio publico solo contiene la web y los datos.
+*
+!index.html
+!data.json
+!.gitignore

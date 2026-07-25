@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitor Voltaje 69 kV - Subestacion</title>
+<style>
+ :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--txt:#e6edf3;--mut:#8b949e;
+   --green:#2ea043;--yellow:#d29922;--red:#f85149;--blue:#58a6ff;}
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);
+   font-family:"Segoe UI",system-ui,sans-serif}
+ header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;
+   align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+ h1{font-size:18px;margin:0;font-weight:600}
+ .sub{color:var(--mut);font-size:12px}
+ .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:18px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+ .card .lbl{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+ .card .val{font-size:26px;font-weight:700;margin-top:4px}
+ .card .u{font-size:13px;color:var(--mut);font-weight:400}
+ .big{grid-column:span 2}
+ .big .val{font-size:42px}
+ .pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
+ .s-NORMAL{background:rgba(46,160,67,.18);color:var(--green)}
+ .s-PRE{background:rgba(210,153,34,.18);color:var(--yellow)}
+ .s-AL{background:rgba(248,81,73,.18);color:var(--red)}
+ .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+ .panel h2{font-size:14px;margin:0 0 12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+ canvas{width:100%;height:360px;display:block}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--line)}
+ th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px}
+ td:first-child,th:first-child{text-align:left}
+ .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+ .up{color:var(--red)} .down{color:var(--blue)} .flat{color:var(--green)}
+ .foot{color:var(--mut);font-size:11px;text-align:center;padding:10px}
+ .off{color:var(--red);font-weight:600}
+</style></head>
+<body>
+<header>
+ <div><h1>Monitor de Voltaje &mdash; Barra 69 kV</h1>
+   <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza solo</div></div>
+ <div class="sub" id="clock">--:--:--</div>
+</header>
+<div class="wrap">
+ <div class="grid">
+   <div class="card big"><div class="lbl">Tension linea-linea (Vll avg)</div>
+     <div class="val" id="v-main">-- <span class="u">kV</span></div>
+     <span class="pill" id="v-estado">--</span></div>
+   <div class="card"><div class="lbl">% Nominal</div><div class="val" id="v-pct">--<span class="u">%</span></div></div>
+   <div class="card"><div class="lbl">Frecuencia</div><div class="val" id="v-freq">--<span class="u">Hz</span></div></div>
+   <div class="card"><div class="lbl">Desbalance V</div><div class="val" id="v-desbal">--<span class="u">%</span></div></div>
+   <div class="card"><div class="lbl">Tendencia</div><div class="val" id="v-trend" style="font-size:18px">--</div></div>
+ </div>
+
+ <div class="panel"><h2>Grafica de tendencia</h2><canvas id="chart"></canvas></div>
+
+ <div class="panel"><h2>Ultimas lecturas</h2>
+   <table><thead><tr><th>Hora</th><th>Vll avg (kV)</th><th>% Un</th><th>Estado</th></tr></thead>
+   <tbody id="tbody"></tbody></table></div>
+</div>
+<div class="foot" id="foot">Cargando datos...</div>
+
+<script>
+let TH=null, NOM=69000;
+const $=id=>document.getElementById(id);
+function kv(x){return (x/1000).toFixed(2);}
+function estadoClass(e){ if(!e)return 's-NORMAL'; if(e.indexOf('TRIP')>=0||e.indexOf('ALARMA')>=0)return 's-AL'; if(e.indexOf('PRE')>=0)return 's-PRE'; return 's-NORMAL';}
+function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return '#f85149'; if(v>=TH.WarnHigh||v<=TH.WarnLow)return '#d29922'; return '#2ea043';}
+
+async function tick(){
+ try{
+  const r=await fetch('data.json?t='+Date.now(),{cache:'no-store'}); const d=await r.json();
+  TH=d.thresholds; NOM=d.nominal;
+  const L=d.live;
+  $('v-main').innerHTML=kv(L.v)+' <span class="u">kV</span>';
+  $('v-main').style.color=colorFor(L.v);
+  $('v-pct').innerHTML=(L.pct!=null?L.pct.toFixed(1):'--')+'<span class="u">%</span>';
+  $('v-freq').innerHTML=(L.freq!=null?L.freq.toFixed(2):'--')+'<span class="u">Hz</span>';
+  $('v-desbal').innerHTML=(L.desbal!=null?L.desbal.toFixed(2):'--')+'<span class="u">%</span>';
+  const p=$('v-estado'); p.textContent=L.estado; p.className='pill '+estadoClass(L.estado);
+  $('foot').innerHTML='Ultima lectura: '+L.ts+' &middot; publicado: '+d.updated;
+
+  const H=d.history||[];
+  drawChart(H);
+  const tb=$('tbody'); tb.innerHTML='';
+  H.slice(-12).reverse().forEach(h=>{
+    const c=colorFor(h.v);
+    tb.innerHTML+=`<tr><td>${h.ts.substring(11)}</td><td>${kv(h.v)}</td><td>${h.pct!=null?h.pct.toFixed(1):''}</td>`+
+      `<td><span class="dot" style="background:${c}"></span>${h.estado}</td></tr>`;
+  });
+  const seg=H.slice(-10);
+  if(seg.length>=2){
+    const t0=new Date(seg[0].ts.replace(' ','T')).getTime();
+    let sx=0,sy=0,sxx=0,sxy=0,n=seg.length;
+    seg.forEach(h=>{const x=(new Date(h.ts.replace(' ','T')).getTime()-t0)/60000,y=h.v;sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;});
+    const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx||1);
+    let cls='flat',txt='Estable';
+    if(slope>1){cls='up';txt='&#9650; +'+slope.toFixed(0)+' V/min';}
+    else if(slope<-1){cls='down';txt='&#9660; '+slope.toFixed(0)+' V/min';}
+    $('v-trend').className=cls; $('v-trend').innerHTML=txt;
+  }
+ }catch(e){ $('foot').innerHTML='<span class="off">Aun no hay datos publicados ('+e.message+')</span>'; }
+}
+
+function drawChart(H){
+ const cv=$('chart'),dpr=window.devicePixelRatio||1;
+ const W=cv.clientWidth,Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh);
+ if(H.length<2){return;}
+ const padL=54,padR=90,padT=14,padB=26;
+ const vals=H.map(h=>h.v);
+ let dMin=Math.min(...vals),dMax=Math.max(...vals);
+ const pad=Math.max(300,(dMax-dMin)*0.6); let yMin=dMin-pad,yMax=dMax+pad;
+ const x2=i=>padL+(W-padL-padR)*(H.length>1?i/(H.length-1):0.5);
+ const y2=val=>padT+(Hh-padT-padB)*(1-(val-yMin)/(yMax-yMin));
+ // umbrales visibles
+ const lines=[[TH.OV_temp,'#f85149','Alarma 105%'],[TH.WarnHigh,'#d29922','Pre-alta 103%'],
+   [NOM,'#8b949e','Nominal 69'],[TH.WarnLow,'#d29922','Pre-baja 92%'],[TH.UV_temp,'#f85149','Alarma 90%']];
+ g.font='10px Segoe UI';
+ lines.forEach(l=>{ if(l[0]<yMin||l[0]>yMax)return; const y=y2(l[0]);
+   g.strokeStyle=l[1];g.setLineDash([4,4]);g.globalAlpha=.55;
+   g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
+   g.fillStyle=l[1];g.textAlign='left';g.fillText(l[2],W-padR+4,y+3);});
+ // eje Y
+ g.fillStyle='#8b949e';g.textAlign='right';
+ for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;const y=y2(v);g.fillText((v/1000).toFixed(2),padL-6,y+3);}
+ // serie
+ g.strokeStyle='#58a6ff';g.lineWidth=2;g.beginPath();
+ H.forEach((h,i)=>{const px=x2(i),py=y2(Math.max(yMin,Math.min(yMax,h.v)));if(i===0)g.moveTo(px,py);else g.lineTo(px,py);});
+ g.stroke();
+ const last=H[H.length-1];g.fillStyle=colorFor(last.v);
+ g.beginPath();g.arc(x2(H.length-1),y2(Math.max(yMin,Math.min(yMax,last.v))),4,0,7);g.fill();
+ g.fillStyle='#8b949e';g.textAlign='left';g.fillText(H[0].ts.substring(11,16),padL,Hh-8);
+ g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+}
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
+tick(); setInterval(tick,60000);
+</script>
+</body></html>
