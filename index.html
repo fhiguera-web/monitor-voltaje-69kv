@@ -62,8 +62,8 @@
 
 <script>
 let TH=null, NOM=69000;
-// Lee el data.json directo del repo (raw) con anti-cache: se actualiza sin reconstruir Pages.
-const DATA_URL='https://raw.githubusercontent.com/fhiguera-web/monitor-voltaje-69kv/main/data.json';
+// Lee el data.json del mismo origen (GitHub Pages purga su CDN en cada publicacion).
+const DATA_URL='data.json';
 const $=id=>document.getElementById(id);
 function kv(x){return (x/1000).toFixed(2);}
 function estadoClass(e){ if(!e)return 's-NORMAL'; if(e.indexOf('TRIP')>=0||e.indexOf('ALARMA')>=0)return 's-AL'; if(e.indexOf('PRE')>=0)return 's-PRE'; return 's-NORMAL';}
