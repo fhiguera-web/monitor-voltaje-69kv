@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Medidores de Generadores - Subestacion</title>
+<style>
+ :root{
+   --bg:#0d1117; --panel:#161b22; --panel-alto:#1c2430; --line:#30363d;
+   --txt:#e6edf3; --mut:#8b949e; --blue:#3987e5;
+   /* misma paleta de estado verificada que el tablero del ION */
+   --green:#0ca30c; --yellow:#fab219; --red:#d03b3b; --grey:#6e7681;
+   --r:12px; --t1:.18s; --t2:.35s; --ease:cubic-bezier(.4,0,.2,1);
+ }
+ @media (prefers-reduced-motion: reduce){
+   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+     transition-duration:.01ms!important}
+ }
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);
+   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+   -webkit-font-smoothing:antialiased}
+ header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;
+   align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+ h1{font-size:18px;margin:0;font-weight:600}
+ .sub{color:var(--mut);font-size:12px}
+ a.volver{color:var(--blue);text-decoration:none;font-size:13px;border:1px solid var(--line);
+   padding:6px 14px;border-radius:8px;display:inline-block;
+   transition:border-color var(--t1) var(--ease),background var(--t1) var(--ease)}
+ a.volver:hover{border-color:var(--blue);background:rgba(57,135,229,.10)}
+ .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+   transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease),box-shadow var(--t1) var(--ease)}
+ .card:hover{border-color:#41484f;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+ .card .lbl{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+ .card .val{font-size:30px;font-weight:700;margin-top:4px;line-height:1.15;letter-spacing:-.4px}
+ .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:18px;
+   animation:entra var(--t2) var(--ease) both}
+ @keyframes entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+ .panel h2{font-size:14px;margin:0 0 12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+ .tbl-wrap{overflow-x:auto}
+ table{width:100%;border-collapse:collapse;font-size:13px;min-width:720px}
+ th,td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+   font-variant-numeric:tabular-nums}
+ th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px;font-variant-numeric:normal}
+ tbody tr{transition:background var(--t1) var(--ease)}
+ tbody tr:hover{background:rgba(255,255,255,.03)}
+ td:first-child,th:first-child,td:nth-child(2),th:nth-child(2){text-align:left}
+ /* punto + etiqueta: el estado nunca se comunica solo con color */
+ .pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+ .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+ .e1{background:rgba(12,163,12,.16);color:var(--green)}
+ .e2{background:rgba(250,178,25,.16);color:var(--yellow)}
+ .e3{background:rgba(208,59,59,.18);color:var(--red)}
+ .e4{background:rgba(110,118,129,.22);color:#adbac7}
+ .aviso{display:flex;align-items:flex-start;gap:10px;background:rgba(208,59,59,.12);
+   border:1px solid rgba(208,59,59,.45);border-left:3px solid var(--red);
+   border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.6}
+ .aviso b{color:var(--red)}
+ .aviso::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);
+   flex:none;margin-top:6px;animation:latido 1.8s var(--ease) infinite}
+ @keyframes latido{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+ .nota{color:var(--mut);font-size:12px;line-height:1.6;background:var(--panel);
+   border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:8px;padding:12px 16px;margin-bottom:18px}
+ .foot{color:var(--mut);font-size:11px;text-align:center;padding:10px}
+ .off{color:var(--red);font-weight:600}
+ .mut{color:var(--mut)}
+</style></head>
+<body>
+<header>
+ <div><h1>Medidores de Generadores</h1>
+   <div class="sub">CENACE &middot; EasyMetering &middot; 6 medidores del parque</div></div>
+ <a class="volver" href="index.html">&larr; Monitoreo 69 kV</a>
+</header>
+<div class="wrap">
+
+ <div class="aviso" id="aviso" hidden></div>
+
+ <div class="nota">
+   Estos medidores pertenecen a los <b>generadores electricos</b>, que entran en operacion cuando
+   se produce un evento en la red de 69 kV.
+   <br><b>Ultimo reporte</b> es cuando el medidor se comunico con el portal.
+   <b>Ultimo intervalo</b> es el ultimo registro de perfil de carga (bloques de 15 min) que tiene
+   el portal; un equipo puede seguir comunicandose y llevar semanas sin registrar intervalos.
+   <br>La <b>energia generada (kWh)</b> por evento se anexara cuando se habilite su lectura: solo
+   entonces podra afirmarse cuanto genero cada equipo.
+ </div>
+
+ <div class="grid">
+   <div class="card"><div class="lbl">Total</div><div class="val" id="v-total">--</div></div>
+   <div class="card"><div class="lbl">En linea</div><div class="val" id="v-linea" style="color:var(--green)">--</div></div>
+   <div class="card"><div class="lbl">Fuera de linea</div><div class="val" id="v-fuera" style="color:var(--red)">--</div></div>
+   <div class="card"><div class="lbl">En revision</div><div class="val" id="v-revision" style="color:#adbac7">--</div></div>
+   <div class="card"><div class="lbl">Eventos de red (30 d)</div><div class="val" id="v-eventos" style="color:var(--blue)">--</div>
+     <div class="sub2" id="v-generales">--</div></div>
+   <div class="card"><div class="lbl">Apagones acumulados</div><div class="val" id="v-apagones">--</div>
+     <div class="sub2">suma de los 6 medidores</div></div>
+ </div>
+
+ <div class="panel"><h2>Eventos de red detectados por los generadores</h2>
+   <div class="sub2" style="margin-bottom:10px">
+     Cuando varios medidores reportan en la misma ventana se trata de un evento <b>general</b> de la red;
+     uno solo es una incidencia <b>local</b> de ese generador. La columna del ION muestra que midio
+     el medidor de la barra de 69 kV en esa misma ventana.
+   </div>
+   <div class="tbl-wrap"><table>
+     <thead><tr>
+       <th>Fecha y hora</th><th>Alcance</th><th>Medidores</th><th>Evento</th>
+       <th>ION antes</th><th>ION despues</th><th>Comunicacion</th>
+     </tr></thead>
+     <tbody id="ev-tbody"></tbody>
+   </table></div>
+ </div>
+
+ <div class="panel"><h2>Estado de los medidores</h2>
+   <div class="tbl-wrap"><table>
+     <thead><tr>
+       <th>Medidor</th><th>Serial</th><th>Estado</th>
+       <th>Ultimo reporte</th><th>Hace</th>
+       <th>Ultimo intervalo</th><th>Hace</th>
+       <th>Apagones</th><th>Ultimo apagon</th>
+     </tr></thead>
+     <tbody id="tbody"></tbody>
+   </table></div>
+ </div>
+
+ <div class="panel"><h2>Instrumentacion de los generadores</h2>
+   <div class="sub2" style="margin-bottom:10px">
+     Ultima captura disponible de cada equipo. <b>El portal las toma de forma esporadica</b>,
+     no son series continuas: lo normal es que esten desactualizadas y en cero cuando el
+     generador no esta operando.
+   </div>
+   <div class="tbl-wrap"><table>
+     <thead><tr>
+       <th>Medidor</th><th>Captura</th>
+       <th>Va</th><th>Vb</th><th>Vc</th>
+       <th>Ia</th><th>Ib</th><th>Ic</th>
+       <th>FP</th><th>kW</th><th>kVAR</th>
+     </tr></thead>
+     <tbody id="in-tbody"></tbody>
+   </table></div>
+ </div>
+
+</div>
+<div class="foot" id="foot">Cargando...</div>
+
+<script>
+const $=id=>document.getElementById(id);
+function claseEstado(c){ return 'pill e'+([1,2,3,4].includes(c)?c:4); }
+function claseAlcance(a){ return a==='General' ? 'pill e3' : 'pill e4'; }
+function horas(h){
+  if(h==null) return '<span class="mut">--</span>';
+  if(h<1) return Math.round(h*60)+' min';
+  if(h<48) return h.toFixed(1)+' h';
+  return (h/24).toFixed(1)+' dias';
+}
+function dias(d){ return d==null ? '<span class="mut">--</span>' : (d<1 ? Math.round(d*24)+' h' : d.toFixed(1)+' dias'); }
+function kv(v){ return v==null ? '<span class="mut">--</span>' : (v/1000).toFixed(2)+' kV'; }
+function num(v,d){ return (v==null||v==='') ? '<span class="mut">--</span>' : Number(v).toFixed(d===undefined?2:d); }
+
+async function tick(){
+ try{
+  const r=await fetch('medidores.json?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok) throw new Error('sin datos publicados todavia');
+  const d=await r.json();
+  // esta pagina se refresca cada 10 min: el limite es mas holgado que el del ION
+  const a=$('aviso');
+  if(d.epoch && (Date.now()-d.epoch)/60000 > 30){
+    const min=(Date.now()-d.epoch)/60000;
+    const txt = min<1440 ? (min/60).toFixed(1)+' horas' : Math.round(min/1440)+' dias';
+    a.hidden=false;
+    a.innerHTML='<div><b>DATOS DESACTUALIZADOS</b> &mdash; la ultima consulta al portal es de hace '+txt+'. '+
+      'El equipo que publica puede estar apagado.</div>';
+  } else { a.hidden=true; }
+
+  const s=d.resumen||{};
+  $('v-total').textContent=s.total!=null?s.total:'--';
+  $('v-linea').textContent=s.enLinea!=null?s.enLinea:'--';
+  $('v-fuera').textContent=s.fueraLinea!=null?s.fueraLinea:'--';
+  $('v-revision').textContent=s.enRevision!=null?s.enRevision:'--';
+  $('v-eventos').textContent=s.eventos30d!=null?s.eventos30d:'--';
+  $('v-generales').textContent=(s.generales30d!=null?s.generales30d:'--')+' generales de red';
+  $('v-apagones').textContent=s.apagones!=null?s.apagones:'--';
+
+  const tb=$('tbody'); tb.innerHTML='';
+  (d.medidores||[]).forEach(m=>{
+    tb.innerHTML+=`<tr>`+
+      `<td>${m.Etiqueta||''}</td>`+
+      `<td>${m.Serial||''}</td>`+
+      `<td><span class="${claseEstado(m.Estado)}">${m.EstadoTxt||'--'}</span></td>`+
+      `<td>${m.UltimaLectura||'<span class="mut">--</span>'}</td>`+
+      `<td>${horas(m.HorasSinReporte)}</td>`+
+      `<td>${m.UltimoIntervalo||'<span class="mut">--</span>'}</td>`+
+      `<td>${dias(m.DiasSinIntervalo)}</td>`+
+      `<td>${m.Apagones!=null?m.Apagones:'<span class="mut">--</span>'}</td>`+
+      `<td>${m.UltimoApagon||'<span class="mut">--</span>'}</td>`+
+      `</tr>`;
+  });
+
+  // ---- eventos de red ----
+  const et=$('ev-tbody'); et.innerHTML='';
+  const evs=d.eventos||[];
+  if(d.eventosViejos){
+    et.innerHTML='<tr><td colspan="7" style="color:var(--yellow)">'+
+      'El portal de CENACE no respondio en la ultima consulta: se muestran los eventos de la consulta anterior.</td></tr>';
+  }
+  if(!evs.length && !d.eventosViejos){ et.innerHTML='<tr><td colspan="7" class="mut">Sin eventos registrados en los ultimos 30 dias.</td></tr>'; }
+  evs.forEach(e=>{
+    const i=e.Ion;
+    const gen=e.Alcance==='General';
+    const alc=`<span class="pill ${gen?'e3':'e4'}">${e.Alcance}</span>`;
+    let antes='<span class="mut">--</span>', desp='<span class="mut">--</span>', com='<span class="mut">sin registro local</span>';
+    if(i){
+      antes=i.VoltajeAntes!=null?kv(i.VoltajeAntes):'<span class="mut">--</span>';
+      desp =i.VoltajeDespues!=null?kv(i.VoltajeDespues):'<span class="mut">--</span>';
+      com  = i.SinComunicacion
+        ? `<span style="color:var(--red);font-weight:600">perdida ${i.MuestrasError} muestras</span>`
+        : '<span style="color:var(--green)">sin interrupcion</span>';
+    }
+    et.innerHTML+=`<tr><td>${e.Inicio}</td><td>${alc}</td><td>${e.Medidores}</td>`+
+      `<td>${e.Tipo||''}</td><td>${antes}</td><td>${desp}</td><td>${com}</td></tr>`;
+  });
+
+  // ---- instrumentacion ----
+  const it=$('in-tbody'); it.innerHTML='';
+  (d.medidores||[]).forEach(m=>{
+    const x=m.Instr;
+    if(!x){ it.innerHTML+=`<tr><td>${m.Etiqueta}</td><td colspan="10" class="mut">sin capturas</td></tr>`; return; }
+    it.innerHTML+=`<tr><td>${m.Etiqueta}</td><td>${x.Ts||'--'}</td>`+
+      `<td>${num(x.Va)}</td><td>${num(x.Vb)}</td><td>${num(x.Vc)}</td>`+
+      `<td>${num(x.Ia)}</td><td>${num(x.Ib)}</td><td>${num(x.Ic)}</td>`+
+      `<td>${num(x.FP,3)}</td><td>${num(x.kW)}</td><td>${num(x.kVAR)}</td></tr>`;
+  });
+
+  $('foot').textContent='Fuente: '+(d.fuente||'CENACE')+' · actualizado: '+(d.updated||'--');
+ }catch(e){ $('foot').innerHTML='<span class="off">'+e.message+'</span>'; }
+}
+tick(); setInterval(tick,300000);
+</script>
+</body></html>

@@ -1,5 +1,9 @@
 # El repositorio publico solo contiene la web y los datos.
+# Todo excluido por defecto: si alguna vez cae aqui un archivo con
+# credenciales, no se sube. Solo se permite lo que se lista abajo.
 *
 !index.html
+!generadores.html
 !data.json
+!medidores.json
 !.gitignore

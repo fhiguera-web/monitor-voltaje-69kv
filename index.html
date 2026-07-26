@@ -1,47 +1,132 @@
 <!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monitor Voltaje 69 kV - Subestacion</title>
+<title>Monitoreo Electrico 69 kV - Subestacion</title>
 <style>
- :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--txt:#e6edf3;--mut:#8b949e;
-   --green:#2ea043;--yellow:#d29922;--red:#f85149;--blue:#58a6ff;}
+ :root{
+   /* --- superficies --- */
+   --bg:#0d1117; --panel:#161b22; --panel-alto:#1c2430; --line:#30363d;
+   --txt:#e6edf3; --mut:#8b949e;
+   /* --- serie de datos: azul categorico escalonado para fondo oscuro --- */
+   --blue:#3987e5;
+   /* --- paleta de ESTADO (fija, nunca decorativa) ---
+      Verificada sobre la superficie real de los paneles (#161b22):
+      separacion peor par 11.3 bajo protanopia y 27.6 con vision normal.
+      La anterior (#2ea043 / #d29922) daba solo 4.4 bajo protanopia: un
+      operador con daltonismo no distinguia alarma de normal. El color
+      NUNCA va solo: cada estado lleva siempre su etiqueta de texto. */
+   --green:#0ca30c; --yellow:#fab219; --red:#d03b3b;
+   --r:12px;
+   --t1:.18s; --t2:.35s; --ease:cubic-bezier(.4,0,.2,1);
+ }
+ /* Quien pide menos movimiento no recibe ninguno. En una sala de control
+    el parpadeo constante cansa; las animaciones aqui son solo para dirigir
+    la atencion, nunca decorativas. */
+ @media (prefers-reduced-motion: reduce){
+   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+     transition-duration:.01ms!important}
+ }
  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);
-   font-family:"Segoe UI",system-ui,sans-serif}
+   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+   -webkit-font-smoothing:antialiased}
  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;
    align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
  h1{font-size:18px;margin:0;font-weight:600}
  .sub{color:var(--mut);font-size:12px}
  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:18px}
- .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+   transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease),box-shadow var(--t1) var(--ease)}
+ .card:hover{border-color:#41484f;transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.35)}
  .card .lbl{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
- .card .val{font-size:26px;font-weight:700;margin-top:4px}
+ /* cifras destacadas en figuras proporcionales; tabular-nums solo en tablas */
+ .card .val{font-size:26px;font-weight:700;margin-top:4px;line-height:1.15;
+   transition:color var(--t2) var(--ease)}
  .card .u{font-size:13px;color:var(--mut);font-weight:400}
  .big{grid-column:span 2}
- .big .val{font-size:42px}
- .pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
- .s-NORMAL{background:rgba(46,160,67,.18);color:var(--green)}
- .s-PRE{background:rgba(210,153,34,.18);color:var(--yellow)}
- .s-AL{background:rgba(248,81,73,.18);color:var(--red)}
- .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+ .big .val{font-size:42px;letter-spacing:-.5px}
+ .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;
+   font-size:13px;font-weight:700;margin-top:6px;transition:background var(--t2) var(--ease)}
+ /* punto de color + etiqueta: el color nunca comunica solo */
+ .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+ .s-NORMAL{background:rgba(12,163,12,.16);color:var(--green)}
+ .s-PRE{background:rgba(250,178,25,.16);color:var(--yellow)}
+ .s-AL{background:rgba(208,59,59,.18);color:var(--red)}
+ /* solo lo que exige accion late; lo normal permanece quieto */
+ .s-AL::before{animation:latido 1.8s var(--ease) infinite}
+ @keyframes latido{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+ .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:18px;
+   animation:entra var(--t2) var(--ease) both}
+ @keyframes entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
  .panel h2{font-size:14px;margin:0 0 12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+ /* al refrescar se atenua lo anterior en vez de vaciarlo: sin saltos de layout */
+ .stale{opacity:.55;transition:opacity var(--t1) var(--ease)}
+ /* Aviso de datos viejos. Un tablero que muestra la ultima lectura como si
+    fuera actual es peor que uno vacio: invita a confiar en un dato muerto. */
+ .aviso{display:flex;align-items:flex-start;gap:10px;background:rgba(208,59,59,.12);
+   border:1px solid rgba(208,59,59,.45);border-left:3px solid var(--red);
+   border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.6}
+ .aviso b{color:var(--red)}
+ .aviso::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);
+   flex:none;margin-top:6px;animation:latido 1.8s var(--ease) infinite}
+ /* los numeros se apagan cuando dejan de ser vigentes */
+ .viejo{filter:saturate(.35);opacity:.7;transition:filter var(--t2) var(--ease),opacity var(--t2) var(--ease)}
  canvas{width:100%;height:360px;display:block}
- table{width:100%;border-collapse:collapse;font-size:13px}
- th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--line)}
- th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px}
+ #chart2{height:280px}
+ .tbl-wrap{overflow-x:auto}
+ table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+ /* tabular-nums para que las columnas de cifras alineen verticalmente */
+ th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+   font-variant-numeric:tabular-nums}
+ th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px;font-variant-numeric:normal}
+ tbody tr{transition:background var(--t1) var(--ease)}
+ tbody tr:hover{background:rgba(255,255,255,.03)}
+ tbody tr:first-child td{color:var(--txt)}
  td:first-child,th:first-child{text-align:left}
  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
- .up{color:var(--red)} .down{color:var(--blue)} .flat{color:var(--green)}
+ /* capa de lectura del grafico: cruceta + globo */
+ .cw{position:relative}
+ .tip{position:absolute;pointer-events:none;opacity:0;transform:translateY(4px);
+   transition:opacity var(--t1) var(--ease),transform var(--t1) var(--ease);
+   background:var(--panel-alto);border:1px solid var(--line);border-radius:8px;
+   padding:8px 11px;font-size:12px;line-height:1.5;white-space:nowrap;z-index:5;
+   box-shadow:0 6px 20px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}
+ .tip.on{opacity:1;transform:none}
+ .tip b{font-size:14px}
+ .tip .k{color:var(--mut)}
+ /* la tendencia no es un estado: subir no es "malo". La flecha lleva el
+    sentido y el texto se queda en tinta normal, sin robar el rojo de alarma */
+ .up,.down,.flat{color:var(--txt)}
  .foot{color:var(--mut);font-size:11px;text-align:center;padding:10px}
  .off{color:var(--red);font-weight:600}
+ .sub2{color:var(--mut);font-size:12px;margin-top:4px}
+ .bar{height:8px;border-radius:5px;background:#21262d;margin-top:10px;overflow:hidden}
+ .bar-f{height:100%;width:0;background:var(--green);transition:width .4s}
+ .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+ .tab{background:#21262d;border:1px solid var(--line);color:var(--mut);border-radius:6px;
+   padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+ .tab{transition:background var(--t1) var(--ease),border-color var(--t1) var(--ease),color var(--t1) var(--ease)}
+ .tab:hover{color:var(--txt);border-color:#41484f}
+ .tab.on{background:rgba(57,135,229,.16);border-color:var(--blue);color:var(--blue)}
+ .verlink{display:inline-block;margin-top:12px;color:var(--blue);text-decoration:none;font-size:13px;
+   border:1px solid var(--line);padding:6px 14px;border-radius:8px;
+   transition:border-color var(--t1) var(--ease),background var(--t1) var(--ease)}
+ .verlink:hover{border-color:var(--blue);background:rgba(57,135,229,.10)}
+ .e1{background:rgba(12,163,12,.16);color:var(--green)}
+ .e2{background:rgba(250,178,25,.16);color:var(--yellow)}
+ .e3{background:rgba(208,59,59,.18);color:var(--red)}
+ .e4{background:rgba(110,118,129,.22);color:#adbac7}
+ .est{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+ .est::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
 </style></head>
 <body>
 <header>
- <div><h1>Monitor de Voltaje &mdash; Barra 69 kV</h1>
+ <div><h1>Monitoreo Electrico &mdash; Barra 69 kV</h1>
    <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza cada ~60 s</div></div>
  <div class="sub" id="clock">--:--:--</div>
 </header>
 <div class="wrap">
+ <div class="aviso" id="aviso" hidden></div>
  <div class="grid">
    <div class="card big"><div class="lbl">Tension linea-linea (Vll avg)</div>
      <div class="val" id="v-main">-- <span class="u">kV</span></div>
@@ -52,73 +137,215 @@
    <div class="card"><div class="lbl">Tendencia</div><div class="val" id="v-trend" style="font-size:18px">--</div></div>
  </div>
 
- <div class="panel"><h2>Grafica de tendencia</h2><canvas id="chart"></canvas></div>
+ <div class="grid">
+   <div class="card big"><div class="lbl">Carga <span id="c-cap" class="u"></span></div>
+     <div class="val" id="v-carga">--<span class="u">%</span></div>
+     <span class="pill" id="v-estcarga">--</span>
+     <div class="bar"><div class="bar-f" id="v-bar"></div></div></div>
+   <div class="card"><div class="lbl">Corriente (I avg)</div><div class="val" id="v-i">--<span class="u">A</span></div>
+     <div class="sub2" id="v-ifases">-- / -- / --</div></div>
+   <div class="card"><div class="lbl">Potencia activa</div><div class="val" id="v-kw">--<span class="u">kW</span></div>
+     <div class="sub2" id="v-kvar">-- kVAR</div></div>
+   <div class="card"><div class="lbl">Potencia aparente</div><div class="val" id="v-kva">--<span class="u">kVA</span></div></div>
+   <div class="card"><div class="lbl">Factor de potencia</div><div class="val" id="v-fp">--</div>
+     <span class="pill" id="v-estfp">--</span></div>
+   <div class="card"><div class="lbl">Desbalance I</div><div class="val" id="v-idesbal">--<span class="u">%</span></div>
+     <span class="pill" id="v-estidesbal">--</span></div>
+ </div>
+
+ <div class="panel"><h2>Tendencia de tension</h2>
+   <div class="tabs">
+     <button class="tab on" id="esc-umbral">Escala de umbrales</button>
+     <button class="tab" id="esc-detalle">Detalle</button>
+   </div>
+   <div class="cw"><canvas id="chart"></canvas><div class="tip" id="tip1"></div></div></div>
+
+ <div class="panel"><h2>Carga y potencia</h2>
+   <div class="tabs"><button class="tab on" data-serie="carga">Carga %</button><button class="tab" data-serie="kw">kW</button>
+     <button class="tab" data-serie="i">Corriente A</button><button class="tab" data-serie="fp">Factor de potencia</button></div>
+   <div class="cw"><canvas id="chart2"></canvas><div class="tip" id="tip2"></div></div></div>
+
+ <div class="panel"><h2>Detalle por fase</h2>
+   <div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Vln (kV)</th><th>Vll (kV)</th><th>I (A)</th><th>kW</th><th>FP</th></tr></thead>
+   <tbody id="tfases"></tbody></table></div></div>
 
  <div class="panel"><h2>Ultimas lecturas</h2>
-   <table><thead><tr><th>Hora</th><th>Vll avg (kV)</th><th>% Un</th><th>Estado</th></tr></thead>
-   <tbody id="tbody"></tbody></table></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Hora</th><th>Vll avg (kV)</th><th>% Un</th><th>I (A)</th><th>kW</th><th>kVAR</th><th>FP</th><th>Carga %</th><th>Estado</th></tr></thead>
+   <tbody id="tbody"></tbody></table></div></div>
+
+ <div class="panel"><h2>Medidores de generadores (CENACE)</h2>
+   <div class="sub2" id="gen-resumen">Cargando...</div>
+   <div class="tbl-wrap"><table><thead><tr><th>Medidor</th><th>Serial</th><th>Estado</th><th>Ultimo intervalo registrado</th></tr></thead>
+   <tbody id="gen-tbody"></tbody></table></div>
+   <a class="verlink" href="generadores.html">Ver detalle de los generadores &rarr;</a></div>
 </div>
 <div class="foot" id="foot">Cargando datos...</div>
 
 <script>
-let TH=null, NOM=69000;
+let TH=null, NOM=69000, IN=0, HIST=[], SERIE='carga';
 // Lee el data.json del mismo origen (GitHub Pages purga su CDN en cada publicacion).
 const DATA_URL='data.json';
 const $=id=>document.getElementById(id);
 function kv(x){return (x/1000).toFixed(2);}
-function estadoClass(e){ if(!e)return 's-NORMAL'; if(e.indexOf('TRIP')>=0||e.indexOf('ALARMA')>=0)return 's-AL'; if(e.indexOf('PRE')>=0)return 's-PRE'; return 's-NORMAL';}
-function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return '#f85149'; if(v>=TH.WarnHigh||v<=TH.WarnLow)return '#d29922'; return '#2ea043';}
+function n(x,d){return (x==null?'--':Number(x).toFixed(d===undefined?1:d));}
+// El codigo interno es explicito (PREALARMA-DESBALANCE-I) porque viaja al CSV
+// y a los correos; en pantalla no cabe y no hace falta: la tarjeta ya dice de
+// que magnitud se trata.
+const ETIQ={
+  'NORMAL':'Normal','SIN-CARGA':'Sin carga','SIN-DATO':'Sin dato','SIN-LECTURA':'Sin lectura',
+  'ERROR-CONEXION':'Sin comunicacion',
+  'PREALARMA-ALTA':'Pre-alarma alta','PREALARMA-BAJA':'Pre-alarma baja',
+  'ALARMA-ALTA':'Alarma sobretension','ALARMA-BAJA':'Alarma subtension',
+  'TRIP-SOBRETENSION':'Disparo sobretension','TRIP-SUBTENSION':'Disparo subtension',
+  'PREALARMA-CARGA':'Pre-alarma','ALARMA-CARGA':'Alarma','SOBRECARGA':'Sobrecarga',
+  'PREALARMA-FP':'Pre-alarma','ALARMA-FP':'Alarma',
+  'PREALARMA-DESBALANCE-I':'Pre-alarma','ALARMA-DESBALANCE-I':'Alarma'
+};
+function etiq(e){ return ETIQ[e]||e||'--'; }
+
+// Antiguedad calculada con la marca UTC absoluta que publica el equipo, no
+// con el texto de fecha: asi no depende de la zona horaria de quien mira.
+function marcarAntiguedad(epoch,limMin){
+  const a=$('aviso');
+  const apagar=v=>document.querySelectorAll('.grid').forEach(g=>g.classList.toggle('viejo',v));
+  if(!epoch){ a.hidden=true; apagar(false); return true; }
+  const min=(Date.now()-epoch)/60000;
+  if(min<limMin){ a.hidden=true; apagar(false); return true; }
+  const txt = min<60 ? Math.round(min)+' minutos'
+            : (min<2880 ? (min/60).toFixed(1)+' horas' : Math.round(min/1440)+' dias');
+  a.hidden=false; apagar(true);
+  a.innerHTML='<div><b>DATOS DESACTUALIZADOS</b> &mdash; la ultima publicacion es de hace '+txt+'. '+
+    'El equipo que mide puede estar apagado o sin conexion: <b>lo que se ve abajo no refleja el estado actual de la barra.</b></div>';
+  return false;
+}
+
+// OJO con el orden: "PREALARMA" contiene "ALARMA". Si se pregunta primero
+// por ALARMA, toda pre-alarma se pinta como alarma critica (y ademas parpadea).
+function estadoClass(e){
+  if(!e)return 's-NORMAL';
+  if(e.indexOf('PRE')>=0)return 's-PRE';
+  if(e.indexOf('TRIP')>=0||e.indexOf('SOBRECARGA')>=0||e.indexOf('ALARMA')>=0)return 's-AL';
+  return 's-NORMAL';
+}
+function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return '#d03b3b'; if(v>=TH.WarnHigh||v<=TH.WarnLow)return '#fab219'; return '#0ca30c';}
+function colorCarga(p){ if(p==null)return '#8b949e'; if(p>=TH.Carga_alarm)return '#d03b3b'; if(p>=TH.Carga_warn)return '#fab219'; return '#0ca30c';}
+function colorFp(f){ if(f==null)return '#8b949e'; const a=Math.abs(f); if(a<TH.FP_alarm)return '#d03b3b'; if(a<TH.FP_warn)return '#fab219'; return '#0ca30c';}
+const SERIES={
+  carga:{k:'carga',lbl:'Carga (% de la capacidad)',d:1,forceTh:true,
+         th:()=>[[TH.Carga_warn,'#fab219','Pre 80%'],[TH.Carga_alarm,'#d03b3b','Alarma 90%'],[TH.Carga_trip,'#a12b2b','Sobrecarga 100%']]},
+  kw:{k:'kw',lbl:'Potencia activa (kW)',d:0,th:()=>[]},
+  i:{k:'i',lbl:'Corriente I avg (A)',d:1,forceTh:true,th:()=>[[IN,'#d03b3b','In nominal 167 A']]},
+  fp:{k:'fp',lbl:'Factor de potencia (magnitud)',d:3,abs:true,
+      th:()=>[[TH.FP_warn,'#fab219','Pre 0.92'],[TH.FP_alarm,'#d03b3b','Alarma 0.85']]}
+};
 
 async function tick(){
+ // Si la recarga tarda, se atenua lo anterior en vez de vaciarlo. Bajo
+ // 400 ms no se marca nada: parpadear cada 30 s seria peor que esperar.
+ const w=document.querySelector('.wrap');
+ const lento=setTimeout(()=>w.classList.add('stale'),400);
  try{
   const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'}); const d=await r.json();
-  TH=d.thresholds; NOM=d.nominal;
+  TH=d.thresholds; NOM=d.nominal; IN=d.iNominal||0;
+  // el publicador escribe cada 60 s; a los 5 min sin novedades algo va mal
+  marcarAntiguedad(d.epoch,5);
+  $('c-cap').textContent=d.nominalMVA?('de '+d.nominalMVA+' MVA'):'';
   const L=d.live;
   $('v-main').innerHTML=kv(L.v)+' <span class="u">kV</span>';
   $('v-main').style.color=colorFor(L.v);
   $('v-pct').innerHTML=(L.pct!=null?L.pct.toFixed(1):'--')+'<span class="u">%</span>';
   $('v-freq').innerHTML=(L.freq!=null?L.freq.toFixed(2):'--')+'<span class="u">Hz</span>';
   $('v-desbal').innerHTML=(L.desbal!=null?L.desbal.toFixed(2):'--')+'<span class="u">%</span>';
-  const p=$('v-estado'); p.textContent=L.estado; p.className='pill '+estadoClass(L.estado);
+  const p=$('v-estado'); p.textContent=etiq(L.estado); p.className='pill '+estadoClass(L.estado);
+
+  // ---- carga y potencia ----
+  $('v-carga').innerHTML=n(L.carga,1)+'<span class="u">%</span>';
+  $('v-carga').style.color=colorCarga(L.carga);
+  const bf=$('v-bar'); bf.style.width=Math.min(100,Math.max(0,L.carga||0))+'%'; bf.style.background=colorCarga(L.carga);
+  const pc=$('v-estcarga'); pc.textContent=etiq(L.estadoCarga); pc.className='pill '+estadoClass(L.estadoCarga);
+  $('v-i').innerHTML=n(L.iavg,1)+'<span class="u">A</span>';
+  $('v-ifases').textContent=n(L.ia,1)+' / '+n(L.ib,1)+' / '+n(L.ic,1)+' A'+(IN&&L.iavg!=null?'  ('+n(L.iavg/IN*100,0)+'% de In)':'');
+  $('v-kw').innerHTML=n(L.kw,0)+'<span class="u">kW</span>';
+  $('v-kvar').textContent=n(L.kvar,0)+' kVAR';
+  $('v-kva').innerHTML=n(L.kva,0)+'<span class="u">kVA</span>';
+  $('v-fp').textContent=n(L.fp,3);
+  $('v-fp').style.color=colorFp(L.fp);
+  const pf=$('v-estfp'); pf.textContent=etiq(L.estadoFp); pf.className='pill '+estadoClass(L.estadoFp);
+  $('v-idesbal').innerHTML=n(L.idesbal,2)+'<span class="u">%</span>';
+  const pi=$('v-estidesbal'); pi.textContent=etiq(L.estadoIdesbal); pi.className='pill '+estadoClass(L.estadoIdesbal);
+
+  // ---- detalle por fase ----
+  const tf=$('tfases'); tf.innerHTML='';
+  [['a',L.vln_a,L.ab,L.ia,L.kw_a,L.fp_a],['b',L.vln_b,L.bc,L.ib,L.kw_b,L.fp_b],
+   ['c',L.vln_c,L.ca,L.ic,L.kw_c,L.fp_c]].forEach(f=>{
+    tf.innerHTML+=`<tr><td>${f[0].toUpperCase()}</td><td>${f[1]!=null?kv(f[1]):'--'}</td>`+
+      `<td>${f[2]!=null?kv(f[2]):'--'}</td><td>${n(f[3],2)}</td><td>${n(f[4],0)}</td><td>${n(f[5],4)}</td></tr>`;
+   });
+
   $('foot').innerHTML='Ultima lectura: '+L.ts+' &middot; publicado: '+d.updated;
 
-  const H=d.history||[];
-  drawChart(H);
+  const H=d.history||[]; HIST=H;
+  drawChart(H); drawChart2();
   const tb=$('tbody'); tb.innerHTML='';
   H.slice(-12).reverse().forEach(h=>{
     const c=colorFor(h.v);
     tb.innerHTML+=`<tr><td>${h.ts.substring(11)}</td><td>${kv(h.v)}</td><td>${h.pct!=null?h.pct.toFixed(1):''}</td>`+
+      `<td>${n(h.i,1)}</td><td>${n(h.kw,0)}</td><td>${n(h.kvar,0)}</td><td>${n(h.fp,3)}</td>`+
+      `<td><span style="color:${colorCarga(h.carga)}">${n(h.carga,1)}</span></td>`+
       `<td><span class="dot" style="background:${c}"></span>${h.estado}</td></tr>`;
   });
   const seg=H.slice(-10);
   if(seg.length>=2){
     const t0=new Date(seg[0].ts.replace(' ','T')).getTime();
-    let sx=0,sy=0,sxx=0,sxy=0,n=seg.length;
+    let sx=0,sy=0,sxx=0,sxy=0,nn=seg.length;
     seg.forEach(h=>{const x=(new Date(h.ts.replace(' ','T')).getTime()-t0)/60000,y=h.v;sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;});
-    const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx||1);
+    const slope=(nn*sxy-sx*sy)/(nn*sxx-sx*sx||1);
     let cls='flat',txt='Estable';
     if(slope>1){cls='up';txt='&#9650; +'+slope.toFixed(0)+' V/min';}
     else if(slope<-1){cls='down';txt='&#9660; '+slope.toFixed(0)+' V/min';}
     $('v-trend').className=cls; $('v-trend').innerHTML=txt;
   }
  }catch(e){ $('foot').innerHTML='<span class="off">Aun no hay datos publicados ('+e.message+')</span>'; }
+ finally{ clearTimeout(lento); w.classList.remove('stale'); }
 }
 
-function drawChart(H){
+let G1=null, G2=null;   // geometria de cada grafico, para la capa de lectura
+let ESCALA='umbral';    // 'umbral' = de disparo a disparo | 'detalle' = ajustada
+
+function drawChart(H,hi){
  const cv=$('chart'),dpr=window.devicePixelRatio||1;
  const W=cv.clientWidth,Hh=cv.clientHeight;
  cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
  g.clearRect(0,0,W,Hh);
  if(H.length<2){return;}
- const padL=54,padR=90,padT=14,padB=26;
+ const padL=54,padR=104,padT=14,padB=26;
  const vals=H.map(h=>h.v);
  let dMin=Math.min(...vals),dMax=Math.max(...vals);
- const pad=Math.max(300,(dMax-dMin)*0.6); let yMin=dMin-pad,yMax=dMax+pad;
+ // Dos lecturas distintas del mismo dato, y ninguna sirve para las dos cosas:
+ //  - "umbrales": de disparo a disparo. Responde "cuanto margen queda",
+ //    a costa de aplastar la variacion (que es justo el mensaje: muy estable).
+ //  - "detalle": ajustada a los datos. Responde "como se esta moviendo".
+ let yMin,yMax;
+ if(ESCALA==='detalle'){
+   const pad=Math.max(150,(dMax-dMin)*0.45);
+   yMin=dMin-pad; yMax=dMax+pad;
+ } else {
+   const pad=Math.max(400,(dMax-dMin)*0.3);
+   yMin=Math.min(TH.UV_inst,dMin)-pad; yMax=Math.max(TH.OV_inst,dMax)+pad;
+ }
  const x2=i=>padL+(W-padL-padR)*(H.length>1?i/(H.length-1):0.5);
  const y2=val=>padT+(Hh-padT-padB)*(1-(val-yMin)/(yMax-yMin));
- // umbrales visibles
- const lines=[[TH.OV_temp,'#f85149','Alarma 105%'],[TH.WarnHigh,'#d29922','Pre-alta 103%'],
-   [NOM,'#8b949e','Nominal 69'],[TH.WarnLow,'#d29922','Pre-baja 92%'],[TH.UV_temp,'#f85149','Alarma 90%']];
+ // bandas de fondo muy tenues: ubican sin competir con la serie
+ const bands=[[TH.OV_temp,yMax,'rgba(208,59,59,.07)'],[TH.WarnHigh,TH.OV_temp,'rgba(250,178,25,.07)'],
+   [TH.WarnLow,TH.WarnHigh,'rgba(12,163,12,.045)'],[TH.UV_temp,TH.WarnLow,'rgba(250,178,25,.07)'],
+   [yMin,TH.UV_temp,'rgba(208,59,59,.07)']];
+ bands.forEach(b=>{const y1=y2(Math.min(b[1],yMax)),y0=y2(Math.max(b[0],yMin));
+   if(y0<=padT||y1>=Hh-padB)return; g.fillStyle=b[2];g.fillRect(padL,Math.max(y1,padT),W-padL-padR,Math.min(y0,Hh-padB)-Math.max(y1,padT));});
+ // umbrales
+ const lines=[[TH.OV_inst,'#d03b3b','Disparo 113%'],[TH.OV_temp,'#d03b3b','Alarma 105%'],
+   [TH.WarnHigh,'#fab219','Pre-alta 103%'],[NOM,'#8b949e','Nominal 69'],
+   [TH.WarnLow,'#fab219','Pre-baja 92%'],[TH.UV_temp,'#d03b3b','Alarma 90%'],
+   [TH.UV_inst,'#d03b3b','Disparo 85%']];
  g.font='10px Segoe UI';
  lines.forEach(l=>{ if(l[0]<yMin||l[0]>yMax)return; const y=y2(l[0]);
    g.strokeStyle=l[1];g.setLineDash([4,4]);g.globalAlpha=.55;
@@ -128,15 +355,145 @@ function drawChart(H){
  g.fillStyle='#8b949e';g.textAlign='right';
  for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;const y=y2(v);g.fillText((v/1000).toFixed(2),padL-6,y+3);}
  // serie
- g.strokeStyle='#58a6ff';g.lineWidth=2;g.beginPath();
+ g.strokeStyle='#3987e5';g.lineWidth=2;g.beginPath();
  H.forEach((h,i)=>{const px=x2(i),py=y2(Math.max(yMin,Math.min(yMax,h.v)));if(i===0)g.moveTo(px,py);else g.lineTo(px,py);});
  g.stroke();
- const last=H[H.length-1];g.fillStyle=colorFor(last.v);
- g.beginPath();g.arc(x2(H.length-1),y2(Math.max(yMin,Math.min(yMax,last.v))),4,0,7);g.fill();
+ const last=H[H.length-1];
+ // anillo de la superficie bajo el punto: lo separa de la linea sin dibujarle borde
+ const py=y2(Math.max(yMin,Math.min(yMax,last.v)));
+ g.fillStyle='#161b22';g.beginPath();g.arc(x2(H.length-1),py,6.5,0,7);g.fill();
+ g.fillStyle=colorFor(last.v);g.beginPath();g.arc(x2(H.length-1),py,4.5,0,7);g.fill();
  g.fillStyle='#8b949e';g.textAlign='left';g.fillText(H[0].ts.substring(11,16),padL,Hh-8);
  g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+
+ // cruceta de lectura
+ if(hi!=null&&hi>=0&&hi<H.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,H[hi].v)));
+   g.strokeStyle='rgba(255,255,255,.22)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle='#161b22';g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle=colorFor(H[hi].v);g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ G1={W:W,padL:padL,padR:padR,n:H.length,redraw:i=>drawChart(H,i)};
 }
+
+function drawChart2(hi){
+ const S=SERIES[SERIE]; if(!S||!TH)return;
+ const cv=$('chart2'),dpr=window.devicePixelRatio||1;
+ const W=cv.clientWidth,Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh);
+ const pts=HIST.map(h=>({ts:h.ts,v:h[S.k]==null?null:(S.abs?Math.abs(h[S.k]):h[S.k])})).filter(p=>p.v!=null);
+ const padL=58,padR=110,padT=14,padB=26;
+ g.font='10px Segoe UI';
+ if(pts.length<2){ g.fillStyle='#8b949e';g.textAlign='center';
+   g.fillText('Sin datos historicos para esta magnitud todavia',W/2,Hh/2); return; }
+ const vals=pts.map(p=>p.v);
+ let dMin=Math.min(...vals),dMax=Math.max(...vals);
+ const ths=S.th().filter(t=>t[0]!=null&&t[0]>0);
+ // forceTh: el umbral se encuadra siempre (carga y corriente son fracciones
+ // de una capacidad; verlos sin su limite no dice nada)
+ ths.forEach(t=>{ if(S.forceTh||(t[0]<dMax*1.6&&t[0]>dMin*0.4)){ dMin=Math.min(dMin,t[0]); dMax=Math.max(dMax,t[0]); } });
+ const pad=Math.max((dMax-dMin)*0.25,Math.abs(dMax)*0.05)||1;
+ const yMin=dMin-pad,yMax=dMax+pad;
+ const x2=i=>padL+(W-padL-padR)*(pts.length>1?i/(pts.length-1):0.5);
+ const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+ ths.forEach(t=>{ if(t[0]<yMin||t[0]>yMax)return; const y=y2(t[0]);
+   g.strokeStyle=t[1];g.setLineDash([4,4]);g.globalAlpha=.55;
+   g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
+   g.fillStyle=t[1];g.textAlign='left';g.fillText(t[2],W-padR+4,y+3);});
+ g.fillStyle='#8b949e';g.textAlign='right';
+ for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(S.d),padL-6,y2(v)+3);}
+ g.strokeStyle='#3987e5';g.lineWidth=2;g.beginPath();
+ pts.forEach((p,i)=>{const px=x2(i),py=y2(Math.max(yMin,Math.min(yMax,p.v)));if(i===0)g.moveTo(px,py);else g.lineTo(px,py);});
+ g.stroke();
+ const last=pts[pts.length-1];
+ g.fillStyle=SERIE==='carga'?colorCarga(last.v):(SERIE==='fp'?colorFp(last.v):'#3987e5');
+ g.beginPath();g.arc(x2(pts.length-1),y2(Math.max(yMin,Math.min(yMax,last.v))),4,0,7);g.fill();
+ g.textAlign='right';g.fillText(last.v.toFixed(S.d),W-padR-8,y2(Math.max(yMin,Math.min(yMax,last.v)))-8);
+ g.fillStyle='#8b949e';g.textAlign='left';g.fillText(pts[0].ts.substring(11,16),padL,Hh-8);
+ g.fillText(S.lbl,padL+70,Hh-8);
+ g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+
+ if(hi!=null&&hi>=0&&hi<pts.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,pts[hi].v)));
+   g.strokeStyle='rgba(255,255,255,.22)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle='#161b22';g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle='#3987e5';g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ G2={W:W,padL:padL,padR:padR,n:pts.length,pts:pts,dec:S.d,lbl:S.lbl,redraw:i=>drawChart2(i)};
+}
+
+// ---- capa de lectura: cruceta + globo con el valor exacto ----
+// La guia lo pide por defecto: un grafico HTML es interactivo, y el globo
+// nunca es la unica via al dato (la tabla de abajo lo repite).
+function enlazarHover(idCanvas,idTip,geo,fmt){
+ const cv=$(idCanvas),tip=$(idTip);
+ const mover=e=>{
+   const g=geo(); if(!g||!g.n){return;}
+   const r=cv.getBoundingClientRect(), ancho=g.W-g.padL-g.padR;
+   let i=Math.round((e.clientX-r.left-g.padL)/ancho*(g.n-1));
+   i=Math.max(0,Math.min(g.n-1,i));
+   g.redraw(i);
+   const px=g.padL+ancho*(g.n>1?i/(g.n-1):.5);
+   tip.innerHTML=fmt(i); tip.classList.add('on');
+   let left=px+14; if(left+tip.offsetWidth>g.W-6) left=px-tip.offsetWidth-14;
+   tip.style.left=Math.max(6,left)+'px'; tip.style.top='16px';
+ };
+ cv.addEventListener('mousemove',mover);
+ cv.addEventListener('mouseleave',()=>{ tip.classList.remove('on'); const g=geo(); if(g)g.redraw(-1); });
+}
+
+enlazarHover('chart','tip1',()=>G1,i=>{
+ const h=HIST[i]; if(!h)return '';
+ return `<b>${kv(h.v)} kV</b> <span class="k">(${h.pct!=null?h.pct.toFixed(1):'--'}% Un)</span><br>`+
+        `<span class="k">${h.ts.substring(11)}</span> &middot; ${h.estado}<br>`+
+        `<span class="k">I</span> ${n(h.i,1)} A &nbsp; <span class="k">P</span> ${n(h.kw,0)} kW &nbsp; <span class="k">FP</span> ${n(h.fp,3)}`;
+});
+enlazarHover('chart2','tip2',()=>G2,i=>{
+ const g=G2; if(!g||!g.pts[i])return '';
+ const p=g.pts[i];
+ return `<b>${p.v.toFixed(g.dec)}</b><br><span class="k">${g.lbl}</span><br><span class="k">${p.ts.substring(11)}</span>`;
+});
+
+// ---- medidores de los generadores (CENACE). Va aparte del ciclo principal:
+// si su archivo aun no existe, el tablero del ION no debe verse afectado ----
+async function tickGen(){
+ try{
+  const r=await fetch('medidores.json?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok) throw new Error('sin publicar');
+  const d=await r.json(), s=d.resumen||{};
+  $('gen-resumen').textContent=`${s.total||0} medidores · ${s.enLinea||0} en linea · `+
+    `${s.enAviso||0} en aviso · ${s.fueraLinea||0} fuera de linea · ${s.enRevision||0} en revision`;
+  const tb=$('gen-tbody'); tb.innerHTML='';
+  (d.medidores||[]).forEach(m=>{
+    const cls='est e'+([1,2,3,4].includes(m.Estado)?m.Estado:4);
+    const ug=m.UltimoIntervalo||'--';
+    const d=m.DiasSinIntervalo;
+    const hace=d==null?'':` <span style="color:var(--mut)">(hace ${d<1?Math.round(d*24)+' h':d.toFixed(1)+' dias'})</span>`;
+    tb.innerHTML+=`<tr><td>${m.Etiqueta||''}</td><td>${m.Serial||''}</td>`+
+      `<td><span class="${cls}">${m.EstadoTxt||'--'}</span></td><td>${ug}${hace}</td></tr>`;
+  });
+ }catch(e){ $('gen-resumen').textContent='Datos de generadores aun no publicados.'; }
+}
+
+// pestanas del segundo grafico (solo las que tienen data-serie)
+document.querySelectorAll('.tab[data-serie]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab[data-serie]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); SERIE=b.dataset.serie; drawChart2();
+}));
+// escala del grafico de tension
+[['esc-umbral','umbral'],['esc-detalle','detalle']].forEach(([id,modo])=>{
+  $(id).addEventListener('click',()=>{
+    $('esc-umbral').classList.toggle('on',modo==='umbral');
+    $('esc-detalle').classList.toggle('on',modo==='detalle');
+    ESCALA=modo; if(HIST.length)drawChart(HIST);
+  });
+});
+window.addEventListener('resize',()=>{if(HIST.length){drawChart(HIST);drawChart2();}});
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
 tick(); setInterval(tick,30000);
+tickGen(); setInterval(tickGen,300000);   // los medidores cambian lento: cada 5 min basta
 </script>
 </body></html>
