@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Informe de operacion - Barra 69 kV</title>
+<style>
+ :root{
+   --bg:#e9edf3; --panel:#fafbfd; --panel-alto:#ffffff; --line:#d4dae4;
+   --txt:#161c26; --mut:#5a6577; --blue:#1f6fd0;
+   --green:#0f7a2e; --yellow:#96610a; --red:#bf2626;
+   --r:12px; --t1:.18s; --ease:cubic-bezier(.4,0,.2,1);
+   --sombra:0 1px 2px rgba(22,28,38,.06),0 1px 3px rgba(22,28,38,.04);
+ }
+ @media (prefers-reduced-motion: reduce){
+   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+ }
+ *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);
+   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+ header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;
+   align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+   background:var(--panel);box-shadow:var(--sombra);position:sticky;top:0;z-index:10}
+ h1{font-size:18px;margin:0;font-weight:600}
+ .sub{color:var(--mut);font-size:12px}
+ .wrap{padding:20px 22px 60px;max-width:960px;margin:0 auto}
+ .volver{display:inline-block;color:var(--blue);text-decoration:none;font-size:13px;
+   border:1px solid var(--line);padding:8px 14px;border-radius:8px;background:var(--panel-alto);
+   transition:border-color var(--t1) var(--ease),background var(--t1) var(--ease)}
+ .volver:hover{border-color:var(--blue);background:rgba(31,111,208,.08)}
+ .volver:focus-visible,.tab:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+ .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+ .tab{background:#eef1f6;border:1px solid var(--line);color:var(--mut);border-radius:6px;
+   padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;min-height:34px;
+   transition:background var(--t1) var(--ease),border-color var(--t1) var(--ease),color var(--t1) var(--ease)}
+ .tab:hover{color:var(--txt);border-color:#aab4c4;background:#e4e9f1}
+ .tab.on{background:rgba(31,111,208,.12);border-color:var(--blue);color:var(--blue);font-weight:600}
+ .hoja{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+   padding:26px 30px;box-shadow:var(--sombra)}
+ .meta{color:var(--mut);font-size:12px;margin-bottom:14px}
+ .rep{font-size:14.5px;line-height:1.75}
+ .rep h2{font-size:21px;margin:0 0 4px;font-weight:600}
+ .rep h3{font-size:16px;margin:26px 0 10px;font-weight:600;
+   border-bottom:1px solid var(--line);padding-bottom:6px}
+ .rep h4{font-size:13px;margin:18px 0 6px;color:var(--mut);font-weight:600;
+   text-transform:uppercase;letter-spacing:.4px}
+ .rep p{margin:9px 0;max-width:76ch}
+ .rep ul{margin:9px 0;padding-left:22px;max-width:76ch}
+ .rep li{margin:5px 0}
+ .rep em{color:var(--mut);font-style:normal;font-size:13px}
+ .rep .cita{border-left:3px solid var(--yellow);background:rgba(150,97,10,.08);
+   border-radius:0 6px 6px 0;padding:11px 15px;margin:14px 0;max-width:76ch}
+ .rep hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+ .rep .pri{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;
+   font-weight:700;margin-right:8px;vertical-align:1px}
+ .tbl-wrap{overflow-x:auto;margin:12px 0}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);
+   white-space:nowrap;font-variant-numeric:tabular-nums}
+ th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px;font-variant-numeric:normal}
+ td:first-child,th:first-child{text-align:left}
+ tbody tr:hover{background:rgba(31,111,208,.05)}
+ .foot{color:var(--mut);font-size:11px;text-align:center;padding:14px}
+ @media print{
+   header,.tabs,.volver{display:none}
+   body{background:#fff} .hoja{border:0;box-shadow:none;padding:0}
+ }
+</style></head>
+<body>
+<header>
+ <div><h1>Informe de operacion &mdash; Barra 69 kV</h1>
+   <div class="sub">Subestacion &middot; generado automaticamente por el sistema de monitoreo</div></div>
+ <a class="volver" href="index.html">&larr; Volver al tablero</a>
+</header>
+<div class="wrap">
+ <div class="tabs" id="rep-tabs">
+   <button class="tab on" data-r="diario">Informe diario</button>
+   <button class="tab" data-r="semanal">Informe semanal</button>
+   <button class="tab" id="imprimir">Imprimir / PDF</button>
+ </div>
+ <div class="hoja">
+   <div class="meta" id="rep-meta">Cargando informe...</div>
+   <div class="rep" id="rep-cuerpo"></div>
+ </div>
+</div>
+<div class="foot" id="foot"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let REP=null, REPSEL='diario';
+// Se escapa todo antes de insertarlo: aunque el texto lo genera nuestro
+// propio script, pintar HTML sin escapar es una puerta que no conviene
+// dejar abierta.
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function enLinea(s){
+  return esc(s).replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\*([^*]+)\*/g,'<em>$1</em>');
+}
+function mdAHtml(md){
+  const out=[]; const lin=md.split(/\r?\n/);
+  let i=0, enLista=false;
+  const cerrarLista=()=>{ if(enLista){ out.push('</ul>'); enLista=false; } };
+  while(i<lin.length){
+    const l=lin[i];
+    if(l.trim().startsWith('|') && i+1<lin.length && /^\s*\|[\s:|-]+\|\s*$/.test(lin[i+1])){
+      cerrarLista();
+      const cel=r=>r.trim().replace(/^\||\|$/g,'').split('|').map(c=>c.trim());
+      let h='<div class="tbl-wrap"><table><thead><tr>'+cel(l).map(c=>'<th>'+enLinea(c)+'</th>').join('')+'</tr></thead><tbody>';
+      i+=2;
+      while(i<lin.length && lin[i].trim().startsWith('|')){
+        h+='<tr>'+cel(lin[i]).map(c=>'<td>'+enLinea(c)+'</td>').join('')+'</tr>'; i++;
+      }
+      out.push(h+'</tbody></table></div>'); continue;
+    }
+    if(/^#\s/.test(l)){ cerrarLista(); out.push('<h2>'+enLinea(l.replace(/^#\s*/,''))+'</h2>'); i++; continue; }
+    if(/^##\s/.test(l)){ cerrarLista(); out.push('<h3>'+enLinea(l.replace(/^##\s*/,''))+'</h3>'); i++; continue; }
+    if(/^#{3,}\s/.test(l)){
+      cerrarLista();
+      let t=l.replace(/^#{3,}\s*/,'');
+      const m=t.match(/^\[(ALTA|MEDIA|BAJA)\]\s*(.*)$/);
+      if(m){
+        const col={ALTA:'var(--red)',MEDIA:'var(--yellow)',BAJA:'var(--mut)'}[m[1]];
+        const bg={ALTA:'rgba(191,38,38,.13)',MEDIA:'rgba(150,97,10,.14)',BAJA:'rgba(90,101,119,.14)'}[m[1]];
+        out.push('<h4><span class="pri" style="color:'+col+';background:'+bg+'">'+m[1]+'</span>'+enLinea(m[2])+'</h4>');
+      } else out.push('<h4>'+enLinea(t)+'</h4>');
+      i++; continue;
+    }
+    if(/^>\s?/.test(l)){ cerrarLista(); out.push('<div class="cita">'+enLinea(l.replace(/^>\s?/,''))+'</div>'); i++; continue; }
+    if(/^---+\s*$/.test(l)){ cerrarLista(); out.push('<hr>'); i++; continue; }
+    if(/^[-*]\s+/.test(l)){ if(!enLista){ out.push('<ul>'); enLista=true; } out.push('<li>'+enLinea(l.replace(/^[-*]\s+/,''))+'</li>'); i++; continue; }
+    if(l.trim()===''){ cerrarLista(); i++; continue; }
+    cerrarLista(); out.push('<p>'+enLinea(l)+'</p>'); i++;
+  }
+  cerrarLista();
+  return out.join('');
+}
+function pintar(){
+  if(!REP)return;
+  const md=REP[REPSEL], fecha=REP['fecha_'+REPSEL];
+  if(!md){ $('rep-meta').textContent='El informe '+REPSEL+' aun no se ha generado.'; $('rep-cuerpo').innerHTML=''; return; }
+  $('rep-meta').textContent='Informe '+REPSEL+' generado el '+(fecha||REP.generado);
+  $('rep-cuerpo').innerHTML=mdAHtml(md);
+  $('foot').textContent='Publicado por el sistema de monitoreo - ultima actualizacion '+REP.generado;
+  // deja el tipo elegido en la URL para poder compartir el enlace directo
+  history.replaceState(null,'','?r='+REPSEL);
+}
+async function cargar(){
+  try{
+    const r=await fetch('reporte.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('aun no publicado');
+    REP=await r.json(); pintar();
+  }catch(e){ $('rep-meta').textContent='Informe no disponible: '+e.message; }
+}
+document.querySelectorAll('#rep-tabs .tab[data-r]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#rep-tabs .tab[data-r]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); REPSEL=b.dataset.r; pintar();
+}));
+$('imprimir').addEventListener('click',()=>window.print());
+// permite entrar directo al semanal con  reporte.html?r=semanal
+const q=new URLSearchParams(location.search).get('r');
+if(q==='semanal'){ REPSEL='semanal';
+  document.querySelectorAll('#rep-tabs .tab[data-r]').forEach(x=>x.classList.toggle('on',x.dataset.r==='semanal')); }
+cargar(); setInterval(cargar,900000);
+</script>
+</body></html>
