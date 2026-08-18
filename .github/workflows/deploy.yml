@@ -1,0 +1,47 @@
+# Despliegue del sitio por GitHub Actions (18-ago-2026).
+#
+# Reemplaza la construccion "legacy" de Pages (la que arranca sola con
+# cada push a main). Motivo: esa cola heredada empezo a tardar 4-5 min
+# por build y, como el publicador reescribe el commit "datos-live" con
+# --force cada ciclo, el build encolado se quedaba sin el commit que
+# tenia que construir y moria con "Page build failed" y duration = 0 ms.
+# El 18-ago eso dejo la web congelada 40 min.
+name: Publicar sitio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Aqui solo importa el ultimo dato: si entra un push mientras corre un
+# despliegue viejo, el viejo se cancela en vez de hacer cola. Asi la
+# cadencia de publicacion no puede acumular trabajo atrasado.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 'main' y NO el SHA que disparo el run: el publicador reescribe
+          # ese commit con --force en cada ciclo. Si el run arranca despues
+          # del reemplazo, el SHA original ya no existe y el checkout
+          # fallaria -que es justo la averia que esto viene a resolver-.
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: despliegue
+        uses: actions/deploy-pages@v4

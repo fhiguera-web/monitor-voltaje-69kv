@@ -10,3 +10,9 @@
 !reporte.json
 !medidores.json
 !.gitignore
+# El workflow que despliega el sitio. Con "*" arriba hay que reabrir cada
+# nivel del arbol: git no entra en un directorio excluido, asi que sin las
+# dos primeras lineas el archivo de abajo nunca se veria.
+!.github/
+!.github/workflows/
+!.github/workflows/deploy.yml
