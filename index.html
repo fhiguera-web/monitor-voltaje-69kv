@@ -1,47 +1,192 @@
 <!DOCTYPE html>
 <html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monitor Voltaje 69 kV - Subestacion</title>
+<title>Monitoreo Electrico 69 kV - Subestacion</title>
 <style>
- :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--txt:#e6edf3;--mut:#8b949e;
-   --green:#2ea043;--yellow:#d29922;--red:#f85149;--blue:#58a6ff;}
+ :root{
+   /* --- superficies: fondo claro pero NUNCA blanco puro ---
+      El blanco puro en una sala de control cansa la vista en turnos
+      largos y hace que las tarjetas no se despeguen del fondo. Se usa
+      un gris azulado como lienzo y las tarjetas casi blancas encima. */
+   --bg:#e9edf3; --panel:#fafbfd; --panel-alto:#ffffff; --line:#d4dae4;
+   --txt:#161c26; --mut:#5a6577;
+   /* --- serie de datos --- */
+   --blue:#1f6fd0; --blue-soft:rgba(31,111,208,.10);
+   /* --- paleta de ESTADO (fija, nunca decorativa) ---
+      Re-verificada para fondo CLARO: sobre la superficie de tarjeta
+      (#fafbfd) el verde da 4.9:1, el ambar 4.6:1 y el rojo 5.6:1, todos
+      por encima del minimo 4.5:1 de WCAG AA. Los tonos del tema oscuro
+      (#0ca30c/#fab219) bajaban a 3.0:1 y 1.9:1 sobre claro: el ambar era
+      practicamente ilegible. El color NUNCA va solo: cada estado lleva
+      siempre su etiqueta de texto. */
+   --green:#0f7a2e; --yellow:#96610a; --red:#bf2626;
+   /* variantes para trazo de grafico, donde no aplica contraste de texto
+      sino separacion entre series sobre el lienzo claro */
+   --green-g:#12903a; --yellow-g:#d3900c; --red-g:#cf3030;
+   --r:12px;
+   --t1:.18s; --t2:.35s; --ease:cubic-bezier(.4,0,.2,1);
+   --sombra:0 1px 2px rgba(22,28,38,.06),0 1px 3px rgba(22,28,38,.04);
+   --sombra-alta:0 4px 14px rgba(22,28,38,.10),0 2px 6px rgba(22,28,38,.06);
+ }
+ /* Quien pide menos movimiento no recibe ninguno. En una sala de control
+    el parpadeo constante cansa; las animaciones aqui son solo para dirigir
+    la atencion, nunca decorativas. */
+ @media (prefers-reduced-motion: reduce){
+   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+     transition-duration:.01ms!important}
+ }
  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);
-   font-family:"Segoe UI",system-ui,sans-serif}
+   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+   -webkit-font-smoothing:antialiased}
  header{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;
-   align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+   align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;
+   background:var(--panel);box-shadow:var(--sombra)}
  h1{font-size:18px;margin:0;font-weight:600}
  .sub{color:var(--mut);font-size:12px}
  .wrap{padding:18px 22px;max-width:1200px;margin:0 auto}
  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:18px}
- .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+   box-shadow:var(--sombra);
+   transition:border-color var(--t1) var(--ease),transform var(--t1) var(--ease),box-shadow var(--t1) var(--ease)}
+ .card:hover{border-color:#b9c2d1;transform:translateY(-2px);box-shadow:var(--sombra-alta)}
  .card .lbl{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
- .card .val{font-size:26px;font-weight:700;margin-top:4px}
+ /* cifras destacadas en figuras proporcionales; tabular-nums solo en tablas */
+ .card .val{font-size:26px;font-weight:700;margin-top:4px;line-height:1.15;
+   transition:color var(--t2) var(--ease)}
  .card .u{font-size:13px;color:var(--mut);font-weight:400}
  .big{grid-column:span 2}
- .big .val{font-size:42px}
- .pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-top:6px}
- .s-NORMAL{background:rgba(46,160,67,.18);color:var(--green)}
- .s-PRE{background:rgba(210,153,34,.18);color:var(--yellow)}
- .s-AL{background:rgba(248,81,73,.18);color:var(--red)}
- .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+ .big .val{font-size:42px;letter-spacing:-.5px}
+ .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;
+   font-size:13px;font-weight:700;margin-top:6px;transition:background var(--t2) var(--ease)}
+ /* punto de color + etiqueta: el color nunca comunica solo */
+ .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+ .s-NORMAL{background:rgba(15,122,46,.12);color:var(--green)}
+ .s-PRE{background:rgba(150,97,10,.14);color:var(--yellow)}
+ .s-AL{background:rgba(191,38,38,.13);color:var(--red)}
+ /* solo lo que exige accion late; lo normal permanece quieto */
+ .s-AL::before{animation:latido 1.8s var(--ease) infinite}
+ @keyframes latido{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+ .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:18px;
+   box-shadow:var(--sombra);animation:entra var(--t2) var(--ease) both}
+ /* escalonado de entrada: 40 ms por panel dirige la lectura de arriba
+    hacia abajo sin que nada se mueva mas de 6 px */
+ .panel:nth-of-type(1){animation-delay:.04s} .panel:nth-of-type(2){animation-delay:.08s}
+ .panel:nth-of-type(3){animation-delay:.12s} .panel:nth-of-type(4){animation-delay:.16s}
+ .panel:nth-of-type(5){animation-delay:.20s} .panel:nth-of-type(6){animation-delay:.24s}
+ @keyframes entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
  .panel h2{font-size:14px;margin:0 0 12px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+ /* al refrescar se atenua lo anterior en vez de vaciarlo: sin saltos de layout */
+ .stale{opacity:.55;transition:opacity var(--t1) var(--ease)}
+ /* Aviso de datos viejos. Un tablero que muestra la ultima lectura como si
+    fuera actual es peor que uno vacio: invita a confiar en un dato muerto. */
+ .aviso{display:flex;align-items:flex-start;gap:10px;background:rgba(191,38,38,.09);
+   border:1px solid rgba(191,38,38,.35);border-left:3px solid var(--red);
+   border-radius:var(--r);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.6}
+ /* sin esto el "display:flex" de arriba le gana al atributo hidden y el
+    recuadro rojo queda VISIBLE Y VACIO todo el tiempo: una alarma que
+    siempre esta encendida deja de significar algo */
+ .aviso[hidden]{display:none}
+ .aviso b{color:var(--red)}
+ .aviso::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--red);
+   flex:none;margin-top:6px;animation:latido 1.8s var(--ease) infinite}
+ /* los numeros se apagan cuando dejan de ser vigentes */
+ .viejo{filter:saturate(.35);opacity:.7;transition:filter var(--t2) var(--ease),opacity var(--t2) var(--ease)}
  canvas{width:100%;height:360px;display:block}
- table{width:100%;border-collapse:collapse;font-size:13px}
- th,td{text-align:right;padding:6px 10px;border-bottom:1px solid var(--line)}
- th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px}
+ #chart2,#chart3{height:280px}
+ #chartF{height:260px}
+ #chartH{height:300px}
+ .fld{background:var(--panel-alto);border:1px solid var(--line);color:var(--txt);border-radius:6px;
+   padding:6px 8px;font-family:inherit;font-size:12px;min-height:32px}
+ .fld:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+ tbody tr.ev{cursor:pointer}
+ /* cuerpo del reporte: ancho de lectura acotado, no de borde a borde */
+ .rep{font-size:14px;line-height:1.7;margin-top:10px}
+ .rep h3{font-size:15px;margin:20px 0 8px;color:var(--txt);font-weight:600;
+   border-bottom:1px solid var(--line);padding-bottom:5px}
+ .rep h4{font-size:13px;margin:16px 0 6px;color:var(--mut);font-weight:600;
+   text-transform:uppercase;letter-spacing:.4px}
+ .rep p{margin:8px 0;max-width:78ch}
+ .rep ul{margin:8px 0;padding-left:22px;max-width:78ch}
+ .rep li{margin:4px 0}
+ .rep table{margin:10px 0;min-width:0}
+ .rep em{color:var(--mut);font-style:normal;font-size:13px}
+ .rep .cita{border-left:3px solid var(--yellow);background:rgba(150,97,10,.08);
+   border-radius:0 6px 6px 0;padding:10px 14px;margin:12px 0;max-width:78ch}
+ .rep hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+ .rep .pri{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;
+   font-weight:700;margin-right:8px;vertical-align:1px}
+ .tbl-wrap{overflow-x:auto}
+ table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+ /* tabular-nums para que las columnas de cifras alineen verticalmente */
+ th,td{text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+   font-variant-numeric:tabular-nums}
+ th{color:var(--mut);font-weight:600;text-transform:uppercase;font-size:11px;font-variant-numeric:normal}
+ tbody tr{transition:background var(--t1) var(--ease)}
+ tbody tr:hover{background:rgba(31,111,208,.05)}
+ tbody tr:first-child td{color:var(--txt)}
  td:first-child,th:first-child{text-align:left}
  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
- .up{color:var(--red)} .down{color:var(--blue)} .flat{color:var(--green)}
+ /* capa de lectura del grafico: cruceta + globo */
+ .cw{position:relative}
+ .tip{position:absolute;pointer-events:none;opacity:0;transform:translateY(4px);
+   transition:opacity var(--t1) var(--ease),transform var(--t1) var(--ease);
+   background:var(--panel-alto);border:1px solid var(--line);border-radius:8px;
+   padding:8px 11px;font-size:12px;line-height:1.5;white-space:nowrap;z-index:5;
+   box-shadow:0 8px 24px rgba(22,28,38,.16);font-variant-numeric:tabular-nums}
+ .tip.on{opacity:1;transform:none}
+ .tip b{font-size:14px}
+ .tip .k{color:var(--mut)}
+ /* franja que se pinta mientras se arrastra para acercarse. Va como capa
+    sobre el lienzo (no repintando el canvas) para que el arrastre no
+    compita con el redibujo de la cruceta */
+ .selband{position:absolute;top:0;bottom:22px;background:rgba(31,111,208,.14);
+   border-left:1px solid rgba(31,111,208,.55);border-right:1px solid rgba(31,111,208,.55);
+   pointer-events:none;display:none;z-index:4}
+ .cw canvas{cursor:crosshair;touch-action:pan-y}
+ /* barra de ventana: manda sobre TODAS las graficas en vivo a la vez */
+ .vent{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+ .vent .tabs{margin-bottom:0}
+ .vent .zoomchip{background:rgba(31,111,208,.12);border:1px solid var(--blue);color:var(--blue);
+   border-radius:6px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;
+   font-family:inherit;min-height:32px;display:none}
+ /* la tendencia no es un estado: subir no es "malo". La flecha lleva el
+    sentido y el texto se queda en tinta normal, sin robar el rojo de alarma */
+ .up,.down,.flat{color:var(--txt)}
  .foot{color:var(--mut);font-size:11px;text-align:center;padding:10px}
  .off{color:var(--red);font-weight:600}
+ .sub2{color:var(--mut);font-size:12px;margin-top:4px}
+ .bar{height:8px;border-radius:5px;background:#dde2ea;margin-top:10px;overflow:hidden}
+ .bar-f{height:100%;width:0;background:var(--green);transition:width .4s var(--ease),background var(--t2) var(--ease)}
+ .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+ /* 32 px de alto: por debajo de los 44 pt ideales, pero son controles
+    secundarios en un tablero de escritorio y con 6 px de separacion
+    siguen siendo comodos con raton */
+ .tab{background:#eef1f6;border:1px solid var(--line);color:var(--mut);border-radius:6px;
+   padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;min-height:32px}
+ .tab{transition:background var(--t1) var(--ease),border-color var(--t1) var(--ease),color var(--t1) var(--ease)}
+ .tab:hover{color:var(--txt);border-color:#aab4c4;background:#e4e9f1}
+ .tab.on{background:rgba(31,111,208,.12);border-color:var(--blue);color:var(--blue);font-weight:600}
+ .tab:focus-visible,.verlink:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+ .verlink{display:inline-block;margin-top:12px;color:var(--blue);text-decoration:none;font-size:13px;
+   border:1px solid var(--line);padding:8px 14px;border-radius:8px;background:var(--panel-alto);
+   transition:border-color var(--t1) var(--ease),background var(--t1) var(--ease),transform var(--t1) var(--ease)}
+ .verlink:hover{border-color:var(--blue);background:rgba(31,111,208,.08);transform:translateY(-1px)}
+ .e1{background:rgba(15,122,46,.12);color:var(--green)}
+ .e2{background:rgba(150,97,10,.14);color:var(--yellow)}
+ .e3{background:rgba(191,38,38,.13);color:var(--red)}
+ .e4{background:rgba(90,101,119,.14);color:#465061}
+ .est{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700}
+ .est::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
 </style></head>
 <body>
 <header>
- <div><h1>Monitor de Voltaje &mdash; Barra 69 kV</h1>
-   <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza cada ~60 s</div></div>
+ <div><h1>Monitoreo Electrico &mdash; Barra 69 kV</h1>
+   <div class="sub">Subestacion &middot; datos publicados por la planta &middot; se actualiza cada ~3 min
+     &middot; <span title="El tablero de planta lee el medidor cada 10 s; esta pagina publica cada 6 min">medicion cada 10 s</span></div></div>
  <div class="sub" id="clock">--:--:--</div>
 </header>
 <div class="wrap">
+ <div class="aviso" id="aviso" hidden></div>
  <div class="grid">
    <div class="card big"><div class="lbl">Tension linea-linea (Vll avg)</div>
      <div class="val" id="v-main">-- <span class="u">kV</span></div>
@@ -52,91 +197,1017 @@
    <div class="card"><div class="lbl">Tendencia</div><div class="val" id="v-trend" style="font-size:18px">--</div></div>
  </div>
 
- <div class="panel"><h2>Grafica de tendencia</h2><canvas id="chart"></canvas></div>
+ <div class="grid">
+   <div class="card big"><div class="lbl">Carga <span id="c-cap" class="u"></span></div>
+     <div class="val" id="v-carga">--<span class="u">%</span></div>
+     <span class="pill" id="v-estcarga">--</span>
+     <div class="bar"><div class="bar-f" id="v-bar"></div></div></div>
+   <div class="card"><div class="lbl">Corriente (I avg)</div><div class="val" id="v-i">--<span class="u">A</span></div>
+     <div class="sub2" id="v-ifases">-- / -- / --</div></div>
+   <div class="card"><div class="lbl">Potencia activa</div><div class="val" id="v-kw">--<span class="u">kW</span></div>
+     <div class="sub2" id="v-kvar">-- kVAR</div></div>
+   <div class="card"><div class="lbl">Potencia aparente</div><div class="val" id="v-kva">--<span class="u">kVA</span></div></div>
+   <div class="card"><div class="lbl">Factor de potencia</div><div class="val" id="v-fp">--</div>
+     <span class="pill" id="v-estfp">--</span></div>
+   <div class="card"><div class="lbl">Desbalance I</div><div class="val" id="v-idesbal">--<span class="u">%</span></div>
+     <span class="pill" id="v-estidesbal">--</span></div>
+ </div>
+
+ <div class="panel"><h2>Ventana de tiempo</h2>
+   <div class="vent">
+     <div class="tabs">
+       <button class="tab" data-vent="15">15 min</button>
+       <button class="tab" data-vent="30">30 min</button>
+       <button class="tab" data-vent="60">1 h</button>
+       <button class="tab on" data-vent="180">3 h</button>
+     </div>
+     <button class="zoomchip" id="vent-reset">&#10005; salir del zoom</button>
+   </div>
+   <div class="sub2" id="vent-info">&nbsp;</div>
+   <div class="sub2">Manda sobre las cuatro graficas en vivo a la vez (tension, carga, frecuencia y armonicos),
+     para poder compararlas en el mismo intervalo. Tambien puedes <b>arrastrar sobre cualquiera de ellas</b>
+     para acercarte a una franja, y hacer <b>doble clic</b> para volver.</div></div>
+
+ <div class="panel"><h2>Tendencia de tension</h2>
+   <div class="tabs">
+     <button class="tab on" id="esc-umbral">Escala de umbrales</button>
+     <button class="tab" id="esc-detalle">Detalle</button>
+   </div>
+   <div class="cw"><canvas id="chart"></canvas><div class="tip" id="tip1"></div></div></div>
+
+ <div class="panel"><h2>Carga y potencia</h2>
+   <div class="tabs"><button class="tab on" data-serie="carga">Carga %</button><button class="tab" data-serie="kw">kW</button>
+     <button class="tab" data-serie="i">Corriente A</button><button class="tab" data-serie="fp">Factor de potencia</button>
+     <button class="tab" data-serie="thdv">THD V %</button><button class="tab" data-serie="thdi">THD I %</button></div>
+   <div class="cw"><canvas id="chart2"></canvas><div class="tip" id="tip2"></div></div></div>
+
+ <div class="panel"><h2>Frecuencia</h2>
+   <div class="grid" style="margin-bottom:14px">
+     <div class="card"><div class="lbl">Frecuencia actual</div>
+       <div class="val" id="f-act">--<span class="u">Hz</span></div>
+       <span class="pill" id="f-est">--</span></div>
+     <div class="card"><div class="lbl">Min / Max del periodo</div>
+       <div class="val" id="f-minmax" style="font-size:18px">-- / --</div></div>
+     <div class="card"><div class="lbl">Desviacion media</div>
+       <div class="val" id="f-desv">--<span class="u">Hz</span></div>
+       <div class="sub2">respecto de 60 Hz</div></div>
+     <div class="card"><div class="lbl">Tiempo en banda normal</div>
+       <div class="val" id="f-pct">--<span class="u">%</span></div>
+       <div class="sub2">dentro de 60 +/- 0.05 Hz</div></div>
+   </div>
+   <div class="cw"><canvas id="chartF"></canvas><div class="tip" id="tipF"></div></div>
+   <div class="sub2" style="margin-top:8px">Bandas de <b>referencia interna</b> (normal 60&plusmn;0.05, atencion &plusmn;0.15, severo &plusmn;0.50 Hz),
+     fijadas sobre la distribucion medida. <b>No estan verificadas como limite regulatorio</b> de ARCERNNR/CENACE.</div></div>
+
+ <div class="panel"><h2>Calidad de energia &mdash; armonicos</h2>
+   <div class="grid" style="margin-bottom:14px">
+     <div class="card"><div class="lbl">THD tension (peor fase)</div>
+       <div class="val" id="v-thdv">--<span class="u">%</span></div>
+       <span class="pill" id="v-estthd">--</span></div>
+     <div class="card"><div class="lbl">THD corriente (peor fase)</div>
+       <div class="val" id="v-thdi">--<span class="u">%</span></div>
+       <div class="sub2">el limite (TDD) depende de Isc/IL</div></div>
+     <div class="card"><div class="lbl">Sag/Swell</div>
+       <div class="val" id="v-sag">--</div>
+       <div class="sub2">huecos / elevaciones de tension</div></div>
+   </div>
+   <div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>THD V (%)</th><th>THD I (%)</th><th>K-Factor</th><th>Crest Factor</th></tr></thead>
+   <tbody id="tarm"></tbody></table></div>
+   <div class="tabs" style="margin-top:14px">
+     <button class="tab on" id="arm-fases">THD V por fase</button>
+     <button class="tab" id="arm-scatter">THD I vs carga</button>
+     <button class="tab" id="arm-barras">Barras por fase</button></div>
+   <div style="display:flex;gap:14px;font-size:12px;color:var(--mut);margin:0 0 8px" id="ley-fases">
+     <span><span style="color:#1f6fd0">&#9644;&#9644;</span> V1</span>
+     <span><span style="color:#c2521c">&#9644;&nbsp;&#9644;</span> V2</span>
+     <span><span style="color:#0f7d63">&#9643;&#9643;</span> V3</span></div>
+   <div style="display:none;gap:14px;font-size:12px;color:var(--mut);margin:0 0 8px" id="ley-barras">
+     <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1f6fd0"></span> THD V</span>
+     <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#c2521c"></span> THD I</span></div>
+   <div class="cw"><canvas id="chart3"></canvas><div class="tip" id="tip3"></div></div>
+   <div class="sub2" style="margin-top:8px">Referencia: IEEE 519 limita el THD de tension a 5% en barras de hasta 69 kV.
+     El THD de corriente alto con poca carga suele ser efecto matematico, no un problema real.</div></div>
+
+ <div class="panel"><h2>Detalle por fase</h2>
+   <div class="tbl-wrap"><table><thead><tr><th>Fase</th><th>Vln (kV)</th><th>Vll (kV)</th><th>I (A)</th><th>kW</th><th>FP</th></tr></thead>
+   <tbody id="tfases"></tbody></table></div></div>
 
  <div class="panel"><h2>Ultimas lecturas</h2>
-   <table><thead><tr><th>Hora</th><th>Vll avg (kV)</th><th>% Un</th><th>Estado</th></tr></thead>
-   <tbody id="tbody"></tbody></table></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Hora</th><th>Vll avg (kV)</th><th>% Un</th><th>I (A)</th><th>kW</th><th>kVAR</th><th>FP</th><th>Carga %</th><th>Estado</th></tr></thead>
+   <tbody id="tbody"></tbody></table></div></div>
+
+ <div class="panel"><h2>Informe de operacion</h2>
+   <div class="sub2" id="rep-meta">Consultando disponibilidad del informe...</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+     <a class="verlink" href="reporte.html?r=diario" style="margin-top:0">Ver informe diario &rarr;</a>
+     <a class="verlink" href="reporte.html?r=semanal" style="margin-top:0">Ver informe semanal &rarr;</a></div>
+   <div class="sub2" style="margin-top:10px">El informe se abre en su propia pagina: incluye resumen ejecutivo,
+     estadisticas por magnitud, picos de carga, eventos, anomalias, pronostico y sugerencias con su evidencia.</div></div>
+
+ <div class="panel"><h2>Consulta historica</h2>
+   <div class="tabs" id="atajos">
+     <button class="tab" data-h="1">Ultima hora</button><button class="tab on" data-h="24">24 horas</button>
+     <button class="tab" data-h="48">2 dias</button><button class="tab" data-h="168">7 dias</button></div>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+     <label style="font-size:12px;color:var(--mut)">Desde<br><input type="datetime-local" id="h-desde" class="fld"></label>
+     <label style="font-size:12px;color:var(--mut)">Hasta<br><input type="datetime-local" id="h-hasta" class="fld"></label>
+     <button class="tab on" id="h-buscar">Consultar</button>
+     <button class="tab" id="h-exportar">Exportar CSV</button></div>
+   <div class="tabs" id="h-campos">
+     <button class="tab on" data-c="VllAvg">Tension</button><button class="tab" data-c="Freq">Frecuencia</button>
+     <button class="tab" data-c="Iavg">Corriente</button><button class="tab" data-c="kW">kW</button>
+     <button class="tab" data-c="kVAR">kVAR</button><button class="tab" data-c="FP">Factor de potencia</button>
+     <button class="tab" data-c="Desbal">Desbalance V</button><button class="tab" data-c="Idesbal">Desbalance I</button>
+     <button class="tab" data-c="PctCarga">% Carga</button></div>
+   <div class="sub2" id="h-info">Cargando historico...</div>
+   <div class="cw"><canvas id="chartH"></canvas><div class="tip" id="tipH"></div></div>
+   <h2 style="margin-top:16px">Eventos del periodo</h2>
+   <div class="sub2" id="h-disp"></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Inicio</th><th>Estado</th><th>Duracion</th><th>Muestras</th><th>Valor extremo</th></tr></thead>
+   <tbody id="h-eventos"></tbody></table></div>
+   <div class="sub2" style="margin-top:8px">Haz clic en un evento para centrar el grafico en ese instante (&plusmn;15 min).
+     Resolucion publicada: 5 min con banda min-max; el detalle minuto a minuto esta en el tablero local.</div></div>
+
+ <div class="panel"><h2>Medidores de generadores (CENACE)</h2>
+   <div class="sub2" id="gen-resumen">Cargando...</div>
+   <div class="tbl-wrap"><table><thead><tr><th>Medidor</th><th>Serial</th><th>Estado</th><th>Ultimo intervalo registrado</th></tr></thead>
+   <tbody id="gen-tbody"></tbody></table></div>
+   <a class="verlink" href="generadores.html">Ver detalle de los generadores &rarr;</a></div>
 </div>
 <div class="foot" id="foot">Cargando datos...</div>
 
 <script>
-let TH=null, NOM=69000;
+let TH=null, NOM=69000, IN=0, HIST=[], SERIE='carga', LIVE=null;
 // Lee el data.json del mismo origen (GitHub Pages purga su CDN en cada publicacion).
 const DATA_URL='data.json';
+let CICLO=0;   // contador de refrescos: cada 10 se fuerza lectura de origen
 const $=id=>document.getElementById(id);
 function kv(x){return (x/1000).toFixed(2);}
-function estadoClass(e){ if(!e)return 's-NORMAL'; if(e.indexOf('TRIP')>=0||e.indexOf('ALARMA')>=0)return 's-AL'; if(e.indexOf('PRE')>=0)return 's-PRE'; return 's-NORMAL';}
-function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return '#f85149'; if(v>=TH.WarnHigh||v<=TH.WarnLow)return '#d29922'; return '#2ea043';}
+function n(x,d){return (x==null?'--':Number(x).toFixed(d===undefined?1:d));}
+// El codigo interno es explicito (PREALARMA-DESBALANCE-I) porque viaja al CSV
+// y a los correos; en pantalla no cabe y no hace falta: la tarjeta ya dice de
+// que magnitud se trata.
+const ETIQ={
+  'NORMAL':'Normal','SIN-CARGA':'Sin carga','SIN-DATO':'Sin dato','SIN-LECTURA':'Sin lectura',
+  'ERROR-CONEXION':'Sin comunicacion',
+  'PREALARMA-ALTA':'Pre-alarma alta','PREALARMA-BAJA':'Pre-alarma baja',
+  'ALARMA-ALTA':'Alarma sobretension','ALARMA-BAJA':'Alarma subtension',
+  'TRIP-SOBRETENSION':'Disparo sobretension','TRIP-SUBTENSION':'Disparo subtension',
+  'PREALARMA-CARGA':'Pre-alarma','ALARMA-CARGA':'Alarma','SOBRECARGA':'Sobrecarga',
+  'PREALARMA-FP':'Pre-alarma','ALARMA-FP':'Alarma',
+  'PREALARMA-DESBALANCE-I':'Pre-alarma','ALARMA-DESBALANCE-I':'Alarma',
+  'PREALARMA-THD':'Pre-alarma','ALARMA-THD':'Alarma'
+};
+function etiq(e){ return ETIQ[e]||e||'--'; }
+
+// Antiguedad calculada con la marca UTC absoluta que publica el equipo, no
+// con el texto de fecha: asi no depende de la zona horaria de quien mira.
+function marcarAntiguedad(epoch,limMin){
+  const a=$('aviso');
+  const apagar=v=>document.querySelectorAll('.grid').forEach(g=>g.classList.toggle('viejo',v));
+  if(!epoch){ a.hidden=true; apagar(false); return true; }
+  const min=(Date.now()-epoch)/60000;
+  if(min<limMin){ a.hidden=true; apagar(false); return true; }
+  const txt = min<60 ? Math.round(min)+' minutos'
+            : (min<2880 ? (min/60).toFixed(1)+' horas' : Math.round(min/1440)+' dias');
+  a.hidden=false; apagar(true);
+  a.innerHTML='<div><b>DATOS DESACTUALIZADOS</b> &mdash; la ultima publicacion es de hace '+txt+'. '+
+    'El equipo que mide puede estar apagado o sin conexion: <b>lo que se ve abajo no refleja el estado actual de la barra.</b></div>';
+  return false;
+}
+
+// El sistema publica bien, pero el medidor no contesta: los numeros de
+// abajo son la ultima lectura buena, no la situacion actual.
+function marcarSinComunicacion(L){
+  const a=$('aviso');
+  const apagar=v=>document.querySelectorAll('.grid').forEach(g=>g.classList.toggle('viejo',v));
+  if(!L||!L.sinComunicacion){ a.hidden=true; apagar(false); return; }
+  a.hidden=false; apagar(true);
+  const desde=L.sinComDesde?L.sinComDesde.substring(11,16):'--';
+  const n=L.muestrasSinCom||0;
+  a.innerHTML='<div><b>SIN COMUNICACION CON EL MEDIDOR</b> desde las '+desde+
+    ' ('+n+' intentos fallidos). Los valores de abajo son la <b>ultima lectura valida</b> ('+
+    (L.ts||'').substring(11,16)+'), no el estado actual de la barra.</div>';
+}
+
+// OJO con el orden: "PREALARMA" contiene "ALARMA". Si se pregunta primero
+// por ALARMA, toda pre-alarma se pinta como alarma critica (y ademas parpadea).
+function estadoClass(e){
+  if(!e)return 's-NORMAL';
+  if(e.indexOf('PRE')>=0)return 's-PRE';
+  if(e.indexOf('TRIP')>=0||e.indexOf('SOBRECARGA')>=0||e.indexOf('ALARMA')>=0)return 's-AL';
+  return 's-NORMAL';
+}
+// Paleta del lienzo. El canvas no resuelve variables CSS, asi que los
+// tonos se repiten aqui; son las variantes -g (trazo), pensadas para
+// separarse sobre el fondo claro de las tarjetas.
+const C_OK='#12903a', C_WARN='#d3900c', C_BAD='#cf3030', C_MUT='#5a6577',
+      C_AZUL='#1f6fd0', C_SUP='#fafbfd', C_GRID='#dfe4ec';
+function colorFor(v){ if(v>=TH.OV_temp||v<=TH.UV_temp)return C_BAD; if(v>=TH.WarnHigh||v<=TH.WarnLow)return C_WARN; return C_OK;}
+function colorCarga(p){ if(p==null)return C_MUT; if(p>=TH.Carga_alarm)return C_BAD; if(p>=TH.Carga_warn)return C_WARN; return C_OK;}
+function colorFp(f){ if(f==null)return C_MUT; const a=Math.abs(f); if(a<TH.FP_alarm)return C_BAD; if(a<TH.FP_warn)return C_WARN; return C_OK;}
+
+// --------------------------------------------------------------------
+//  Trazo suavizado. Catmull-Rom convertido a Bezier con tension REDUCIDA
+//  A LA MITAD (k=0.5 en vez de 1): redondea la union entre puntos sin
+//  desplazar ninguno y sin el sobreimpulso que inventaria picos que no
+//  existen. Es un efecto de dibujo: los valores, la banda min-max, el
+//  globo y las tablas siguen mostrando el dato exacto. En un tablero
+//  electrico eso no es un detalle - un pico suavizado de mas seria un
+//  transitorio escondido.
+// --------------------------------------------------------------------
+function trazarSuave(g,pts,k){
+  if(!pts.length)return;
+  const t=(k==null?0.5:k);
+  g.moveTo(pts[0].x,pts[0].y);
+  if(pts.length<3){ for(let i=1;i<pts.length;i++)g.lineTo(pts[i].x,pts[i].y); return; }
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i>0?i-1:0], p1=pts[i], p2=pts[i+1], p3=pts[i+2<pts.length?i+2:pts.length-1];
+    g.bezierCurveTo(p1.x+(p2.x-p0.x)/6*t, p1.y+(p2.y-p0.y)/6*t,
+                    p2.x-(p3.x-p1.x)/6*t, p2.y-(p3.y-p1.y)/6*t, p2.x, p2.y);
+  }
+}
+// los "||5/||8" cubren un data.json publicado antes de agregar estos umbrales
+function colorThd(t){ if(t==null)return C_MUT; if(t>=(TH.THDV_alarm||8))return C_BAD; if(t>=(TH.THDV_warn||5))return C_WARN; return C_OK;}
+const SERIES={
+  carga:{k:'carga',lbl:'Carga (% de la capacidad)',d:1,forceTh:true,
+         th:()=>[[TH.Carga_warn,C_WARN,'Pre 80%'],[TH.Carga_alarm,C_BAD,'Alarma 90%'],[TH.Carga_trip,'#9e2222','Sobrecarga 100%']]},
+  kw:{k:'kw',lbl:'Potencia activa (kW)',d:0,th:()=>[]},
+  i:{k:'i',lbl:'Corriente I avg (A)',d:1,forceTh:true,th:()=>[[IN,C_BAD,'In nominal '+(IN?IN.toFixed(0):'--')+' A']]},
+  fp:{k:'fp',lbl:'Factor de potencia (magnitud)',d:3,abs:true,
+      th:()=>[[TH.FP_warn,C_WARN,'Pre 0.92'],[TH.FP_alarm,C_BAD,'Alarma 0.85']]},
+  thdv:{k:'thdv',lbl:'THD tension (% peor fase)',d:2,forceTh:true,
+      th:()=>[[TH.THDV_warn||5,C_WARN,'IEEE 519 5%'],[TH.THDV_alarm||8,C_BAD,'Alarma 8%']]},
+  thdi:{k:'thdi',lbl:'THD corriente (% peor fase)',d:2,th:()=>[]}
+};
 
 async function tick(){
+ // Si la recarga tarda, se atenua lo anterior en vez de vaciarlo. Bajo
+ // 400 ms no se marca nada: parpadear cada 30 s seria peor que esperar.
+ const w=document.querySelector('.wrap');
+ const lento=setTimeout(()=>w.classList.add('stale'),400);
  try{
-  const r=await fetch(DATA_URL+'?t='+Date.now(),{cache:'no-store'}); const d=await r.json();
-  TH=d.thresholds; NOM=d.nominal;
-  const L=d.live;
+  // data.json paso de ~39 KB a ~100 KB al publicar la ultima hora a 10 s.
+  // Para que eso no multiplique el trafico, el refresco normal REVALIDA:
+  // 'no-cache' manda If-None-Match y Pages responde 304 sin cuerpo mientras
+  // el archivo no cambie (se publica cada 3 min, se refresca cada 20 s).
+  // Cada 10 refrescos se pide con ?t= para forzar origen: si algun nodo del
+  // CDN se quedara sirviendo una copia vieja, ese pedido lo destapa.
+  const forzar=(CICLO++%10)===0;
+  const r=await fetch(DATA_URL+(forzar?('?t='+Date.now()):''),{cache:forzar?'no-store':'no-cache'});
+  const d=await r.json();
+  TH=d.thresholds; NOM=d.nominal; IN=d.iNominal||0;
+  $('c-cap').textContent=d.nominalMVA?('de '+d.nominalMVA+' MVA'):'';
+  const L=d.live; LIVE=L;
+  // Dos fallos distintos, dos avisos distintos:
+  //  - el publicador dejo de subir  -> antiguedad del archivo
+  //  - el medidor dejo de responder -> el archivo llega fresco, pero la
+  //    lectura de abajo es la ultima buena, no la de ahora
+  // 12 min de tolerancia (antes 25, cuando se publicaba cada 6 min). Con
+  // publicacion cada 3 min y build de ~45 s, 12 min son CUATRO ciclos
+  // seguidos sin subir: suficiente para no gritar por un push fallido
+  // aislado, y ya no se tarda media hora en enterarse de que el
+  // publicador murio. El tablero local sigue viendo el dato al instante.
+  const vigente = marcarAntiguedad(d.epoch,12);
+  if(vigente) marcarSinComunicacion(L);
   $('v-main').innerHTML=kv(L.v)+' <span class="u">kV</span>';
   $('v-main').style.color=colorFor(L.v);
   $('v-pct').innerHTML=(L.pct!=null?L.pct.toFixed(1):'--')+'<span class="u">%</span>';
   $('v-freq').innerHTML=(L.freq!=null?L.freq.toFixed(2):'--')+'<span class="u">Hz</span>';
   $('v-desbal').innerHTML=(L.desbal!=null?L.desbal.toFixed(2):'--')+'<span class="u">%</span>';
-  const p=$('v-estado'); p.textContent=L.estado; p.className='pill '+estadoClass(L.estado);
+  const p=$('v-estado'); p.textContent=etiq(L.estado); p.className='pill '+estadoClass(L.estado);
+
+  // ---- carga y potencia ----
+  $('v-carga').innerHTML=n(L.carga,1)+'<span class="u">%</span>';
+  $('v-carga').style.color=colorCarga(L.carga);
+  const bf=$('v-bar'); bf.style.width=Math.min(100,Math.max(0,L.carga||0))+'%'; bf.style.background=colorCarga(L.carga);
+  const pc=$('v-estcarga'); pc.textContent=etiq(L.estadoCarga); pc.className='pill '+estadoClass(L.estadoCarga);
+  $('v-i').innerHTML=n(L.iavg,1)+'<span class="u">A</span>';
+  $('v-ifases').textContent=n(L.ia,1)+' / '+n(L.ib,1)+' / '+n(L.ic,1)+' A'+(IN&&L.iavg!=null?'  ('+n(L.iavg/IN*100,0)+'% de In)':'');
+  $('v-kw').innerHTML=n(L.kw,0)+'<span class="u">kW</span>';
+  $('v-kvar').textContent=n(L.kvar,0)+' kVAR';
+  $('v-kva').innerHTML=n(L.kva,0)+'<span class="u">kVA</span>';
+  $('v-fp').textContent=n(L.fp,3);
+  $('v-fp').style.color=colorFp(L.fp);
+  const pf=$('v-estfp'); pf.textContent=etiq(L.estadoFp); pf.className='pill '+estadoClass(L.estadoFp);
+  $('v-idesbal').innerHTML=n(L.idesbal,2)+'<span class="u">%</span>';
+  const pi=$('v-estidesbal'); pi.textContent=etiq(L.estadoIdesbal); pi.className='pill '+estadoClass(L.estadoIdesbal);
+
+  // ---- detalle por fase ----
+  const tf=$('tfases'); tf.innerHTML='';
+  [['a',L.vln_a,L.ab,L.ia,L.kw_a,L.fp_a],['b',L.vln_b,L.bc,L.ib,L.kw_b,L.fp_b],
+   ['c',L.vln_c,L.ca,L.ic,L.kw_c,L.fp_c]].forEach(f=>{
+    tf.innerHTML+=`<tr><td>${f[0].toUpperCase()}</td><td>${f[1]!=null?kv(f[1]):'--'}</td>`+
+      `<td>${f[2]!=null?kv(f[2]):'--'}</td><td>${n(f[3],2)}</td><td>${n(f[4],0)}</td><td>${n(f[5],4)}</td></tr>`;
+   });
+
+  // ---- armonicos (pagina Power Quality del medidor) ----
+  const tv=[L.thdv1,L.thdv2,L.thdv3].filter(x=>x!=null), ti=[L.thdi1,L.thdi2,L.thdi3].filter(x=>x!=null);
+  const thdv=tv.length?Math.max(...tv):null, thdi=ti.length?Math.max(...ti):null;
+  $('v-thdv').innerHTML=n(thdv,2)+'<span class="u">%</span>';
+  $('v-thdv').style.color=colorThd(thdv);
+  const pt=$('v-estthd'); pt.textContent=etiq(L.estadoThd); pt.className='pill '+estadoClass(L.estadoThd);
+  $('v-thdi').innerHTML=n(thdi,2)+'<span class="u">%</span>';
+  $('v-sag').textContent=n(L.sagswell,2);
+  const ta=$('tarm'); ta.innerHTML='';
+  [['1',L.thdv1,L.thdi1,L.kf1,L.cf1],['2',L.thdv2,L.thdi2,L.kf2,L.cf2],
+   ['3',L.thdv3,L.thdi3,L.kf3,L.cf3]].forEach(f=>{
+    ta.innerHTML+=`<tr><td>${f[0]}</td><td>${n(f[1],2)}</td><td>${n(f[2],2)}</td>`+
+      `<td>${n(f[3],2)}</td><td>${n(f[4],2)}</td></tr>`;
+   });
+
   $('foot').innerHTML='Ultima lectura: '+L.ts+' &middot; publicado: '+d.updated;
 
-  const H=d.history||[];
-  drawChart(H);
+  const H=d.history||[]; HIST=H;
+  aplicarVentana();   // recorta a la ventana elegida y redibuja las 4 graficas
   const tb=$('tbody'); tb.innerHTML='';
   H.slice(-12).reverse().forEach(h=>{
     const c=colorFor(h.v);
     tb.innerHTML+=`<tr><td>${h.ts.substring(11)}</td><td>${kv(h.v)}</td><td>${h.pct!=null?h.pct.toFixed(1):''}</td>`+
+      `<td>${n(h.i,1)}</td><td>${n(h.kw,0)}</td><td>${n(h.kvar,0)}</td><td>${n(h.fp,3)}</td>`+
+      `<td><span style="color:${colorCarga(h.carga)}">${n(h.carga,1)}</span></td>`+
       `<td><span class="dot" style="background:${c}"></span>${h.estado}</td></tr>`;
   });
-  const seg=H.slice(-10);
+  // Tendencia: SIEMPRE los ultimos 10 minutos reales, no las ultimas 10
+  // muestras. Desde que la ultima hora se publica a 10 s, 10 muestras
+  // serian 100 s y la pendiente saldria dominada por el ruido.
+  const tCorte=tms(H[H.length-1].ts)-10*60000;
+  const seg=H.filter(h=>tms(h.ts)>=tCorte);
   if(seg.length>=2){
     const t0=new Date(seg[0].ts.replace(' ','T')).getTime();
-    let sx=0,sy=0,sxx=0,sxy=0,n=seg.length;
+    let sx=0,sy=0,sxx=0,sxy=0,nn=seg.length;
     seg.forEach(h=>{const x=(new Date(h.ts.replace(' ','T')).getTime()-t0)/60000,y=h.v;sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;});
-    const slope=(n*sxy-sx*sy)/(n*sxx-sx*sx||1);
+    const slope=(nn*sxy-sx*sy)/(nn*sxx-sx*sx||1);
     let cls='flat',txt='Estable';
     if(slope>1){cls='up';txt='&#9650; +'+slope.toFixed(0)+' V/min';}
     else if(slope<-1){cls='down';txt='&#9660; '+slope.toFixed(0)+' V/min';}
     $('v-trend').className=cls; $('v-trend').innerHTML=txt;
   }
  }catch(e){ $('foot').innerHTML='<span class="off">Aun no hay datos publicados ('+e.message+')</span>'; }
+ finally{ clearTimeout(lento); w.classList.remove('stale'); }
 }
 
-function drawChart(H){
+let G1=null, G2=null;   // geometria de cada grafico, para la capa de lectura
+let ESCALA='umbral';    // 'umbral' = de disparo a disparo | 'detalle' = ajustada
+let ESCALA_MANUAL=false;// true en cuanto el usuario elige escala a mano
+
+// ---- ventana de tiempo compartida por las graficas en vivo ----------
+// data.json publica 3 h en DOS resoluciones: la ultima hora a 10 s y el
+// tramo anterior a 1 punto/min. VIS es lo que se dibuja: HIST recortado a
+// la ventana elegida. Las cuatro graficas en vivo leen VIS, nunca HIST,
+// de modo que siempre muestran el MISMO intervalo y se pueden comparar.
+let VIS=[], VENT={min:180}, BASE_MIN=180, ARRASTRANDO=false;
+const tms=ts=>new Date(ts.replace(' ','T')).getTime();
+
+// Resolucion leida de los datos mismos y no de un rotulo publicado: si el
+// medidor tuvo huecos, el espaciado real es el unico dato honesto.
+function resolucionTxt(pts){
+ if(pts.length<3)return '--';
+ const d=[]; for(let i=1;i<pts.length;i++)d.push(tms(pts[i].ts)-tms(pts[i-1].ts));
+ d.sort((a,b)=>a-b);
+ const fmt=s=>s>=55?(Math.round(s/60)+' min'):(Math.round(s)+' s');
+ // p10/p90 y no cuartiles: en la vista de 3 h tres cuartas partes de los
+ // puntos son del tramo de 10 s, asi que el cuartil alto seguiria diciendo
+ // "10 s" y ocultaria que el arranque de la ventana va a 1 min.
+ const p10=d[Math.floor(d.length*0.10)]/1000, p90=d[Math.floor(d.length*0.90)]/1000;
+ return (p90-p10>5)?('mixta, '+fmt(p10)+' a '+fmt(p90)):fmt(d[Math.floor(d.length/2)]/1000);
+}
+function aplicarVentana(){
+ if(!HIST.length){VIS=[];return;}
+ const tFin=tms(HIST[HIST.length-1].ts);
+ let t0,t1;
+ if(VENT.t0!=null){t0=VENT.t0;t1=VENT.t1;}
+ else{t1=tFin;t0=tFin-VENT.min*60000;}
+ let v=HIST.filter(h=>{const t=tms(h.ts);return t>=t0&&t<=t1;});
+ if(v.length<2)v=HIST.slice(-2);   // sin dos puntos no hay linea que trazar
+ VIS=v;
+ // La escala de umbrales aplasta la variacion a proposito (responde
+ // "cuanto margen queda"). Al acercarse a media hora o menos lo que se
+ // busca es justo la variacion, asi que se pasa sola a "detalle" -salvo
+ // que el usuario ya haya elegido escala a mano-.
+ if(!ESCALA_MANUAL){
+   const minutos=(tms(VIS[VIS.length-1].ts)-tms(VIS[0].ts))/60000;
+   const auto=(minutos<=31)?'detalle':'umbral';
+   if(auto!==ESCALA){
+     ESCALA=auto;
+     $('esc-umbral').classList.toggle('on',auto==='umbral');
+     $('esc-detalle').classList.toggle('on',auto==='detalle');
+   }
+ }
+ rotularVentana();
+ dibujarVivo();
+}
+function dibujarVivo(){
+ drawChart(VIS); drawChart2(); drawChart3();
+ if(LIVE)actualizarFrecuencia(LIVE,VIS);
+}
+function rotularVentana(){
+ const info=$('vent-info');
+ if(!VIS.length){info.innerHTML='&nbsp;';return;}
+ const ini=VIS[0].ts.substring(11,16), fin=VIS[VIS.length-1].ts.substring(11,16);
+ const minutos=Math.max(1,Math.round((tms(VIS[VIS.length-1].ts)-tms(VIS[0].ts))/60000));
+ info.innerHTML=`Mostrando <b>${ini} &rarr; ${fin}</b> &middot; ${minutos} min &middot; `+
+   `${VIS.length} muestras &middot; resolucion ${resolucionTxt(VIS)}`;
+ document.querySelectorAll('.tab[data-vent]').forEach(b=>
+   b.classList.toggle('on',VENT.t0==null&&+b.dataset.vent===VENT.min));
+ $('vent-reset').style.display=(VENT.t0!=null)?'block':'none';
+}
+
+function drawChart(H,hi){
  const cv=$('chart'),dpr=window.devicePixelRatio||1;
  const W=cv.clientWidth,Hh=cv.clientHeight;
  cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
  g.clearRect(0,0,W,Hh);
  if(H.length<2){return;}
- const padL=54,padR=90,padT=14,padB=26;
+ const padL=54,padR=104,padT=14,padB=26;
  const vals=H.map(h=>h.v);
  let dMin=Math.min(...vals),dMax=Math.max(...vals);
- const pad=Math.max(300,(dMax-dMin)*0.6); let yMin=dMin-pad,yMax=dMax+pad;
+ // Dos lecturas distintas del mismo dato, y ninguna sirve para las dos cosas:
+ //  - "umbrales": de disparo a disparo. Responde "cuanto margen queda",
+ //    a costa de aplastar la variacion (que es justo el mensaje: muy estable).
+ //  - "detalle": ajustada a los datos. Responde "como se esta moviendo".
+ let yMin,yMax;
+ if(ESCALA==='detalle'){
+   const pad=Math.max(150,(dMax-dMin)*0.45);
+   yMin=dMin-pad; yMax=dMax+pad;
+ } else {
+   const pad=Math.max(400,(dMax-dMin)*0.3);
+   yMin=Math.min(TH.UV_inst,dMin)-pad; yMax=Math.max(TH.OV_inst,dMax)+pad;
+ }
  const x2=i=>padL+(W-padL-padR)*(H.length>1?i/(H.length-1):0.5);
  const y2=val=>padT+(Hh-padT-padB)*(1-(val-yMin)/(yMax-yMin));
- // umbrales visibles
- const lines=[[TH.OV_temp,'#f85149','Alarma 105%'],[TH.WarnHigh,'#d29922','Pre-alta 103%'],
-   [NOM,'#8b949e','Nominal 69'],[TH.WarnLow,'#d29922','Pre-baja 92%'],[TH.UV_temp,'#f85149','Alarma 90%']];
+ // bandas de fondo muy tenues: ubican sin competir con la serie
+ // sobre fondo claro el tinte debe ser algo mas denso que en oscuro
+ // para leerse, pero sin competir con la serie
+ const bands=[[TH.OV_temp,yMax,'rgba(207,48,48,.09)'],[TH.WarnHigh,TH.OV_temp,'rgba(211,144,12,.10)'],
+   [TH.WarnLow,TH.WarnHigh,'rgba(18,144,58,.07)'],[TH.UV_temp,TH.WarnLow,'rgba(211,144,12,.10)'],
+   [yMin,TH.UV_temp,'rgba(207,48,48,.09)']];
+ bands.forEach(b=>{const y1=y2(Math.min(b[1],yMax)),y0=y2(Math.max(b[0],yMin));
+   if(y0<=padT||y1>=Hh-padB)return; g.fillStyle=b[2];g.fillRect(padL,Math.max(y1,padT),W-padL-padR,Math.min(y0,Hh-padB)-Math.max(y1,padT));});
+ // umbrales
+ const lines=[[TH.OV_inst,C_BAD,'Disparo 113%'],[TH.OV_temp,C_BAD,'Alarma 105%'],
+   [TH.WarnHigh,C_WARN,'Pre-alta 103%'],[NOM,C_MUT,'Nominal '+(NOM/1000).toFixed(2)],
+   [TH.WarnLow,C_WARN,'Pre-baja 92%'],[TH.UV_temp,C_BAD,'Alarma 90%'],
+   [TH.UV_inst,C_BAD,'Disparo 85%']];
  g.font='10px Segoe UI';
  lines.forEach(l=>{ if(l[0]<yMin||l[0]>yMax)return; const y=y2(l[0]);
    g.strokeStyle=l[1];g.setLineDash([4,4]);g.globalAlpha=.55;
    g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
    g.fillStyle=l[1];g.textAlign='left';g.fillText(l[2],W-padR+4,y+3);});
  // eje Y
- g.fillStyle='#8b949e';g.textAlign='right';
+ g.fillStyle=C_MUT;g.textAlign='right';
  for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;const y=y2(v);g.fillText((v/1000).toFixed(2),padL-6,y+3);}
  // serie
- g.strokeStyle='#58a6ff';g.lineWidth=2;g.beginPath();
- H.forEach((h,i)=>{const px=x2(i),py=y2(Math.max(yMin,Math.min(yMax,h.v)));if(i===0)g.moveTo(px,py);else g.lineTo(px,py);});
+ g.strokeStyle=C_AZUL;g.lineWidth=2;g.lineJoin='round';g.lineCap='round';g.beginPath();
+ trazarSuave(g, H.map((h,i)=>({x:x2(i),y:y2(Math.max(yMin,Math.min(yMax,h.v)))})));
  g.stroke();
- const last=H[H.length-1];g.fillStyle=colorFor(last.v);
- g.beginPath();g.arc(x2(H.length-1),y2(Math.max(yMin,Math.min(yMax,last.v))),4,0,7);g.fill();
- g.fillStyle='#8b949e';g.textAlign='left';g.fillText(H[0].ts.substring(11,16),padL,Hh-8);
+ const last=H[H.length-1];
+ // anillo de la superficie bajo el punto: lo separa de la linea sin dibujarle borde
+ const py=y2(Math.max(yMin,Math.min(yMax,last.v)));
+ g.fillStyle=C_SUP;g.beginPath();g.arc(x2(H.length-1),py,6.5,0,7);g.fill();
+ g.fillStyle=colorFor(last.v);g.beginPath();g.arc(x2(H.length-1),py,4.5,0,7);g.fill();
+ g.fillStyle=C_MUT;g.textAlign='left';g.fillText(H[0].ts.substring(11,16),padL,Hh-8);
  g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+
+ // cruceta de lectura
+ if(hi!=null&&hi>=0&&hi<H.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,H[hi].v)));
+   g.strokeStyle='rgba(22,28,38,.28)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle=C_SUP;g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle=colorFor(H[hi].v);g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ G1={W:W,padL:padL,padR:padR,n:H.length,pts:H,redraw:i=>drawChart(H,i)};
 }
+
+function drawChart2(hi){
+ const S=SERIES[SERIE]; if(!S||!TH)return;
+ const cv=$('chart2'),dpr=window.devicePixelRatio||1;
+ const W=cv.clientWidth,Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh);
+ const pts=VIS.map(h=>({ts:h.ts,v:h[S.k]==null?null:(S.abs?Math.abs(h[S.k]):h[S.k])})).filter(p=>p.v!=null);
+ const padL=58,padR=110,padT=14,padB=26;
+ g.font='10px Segoe UI';
+ if(pts.length<2){ g.fillStyle=C_MUT;g.textAlign='center';
+   g.fillText('Sin datos historicos para esta magnitud todavia',W/2,Hh/2); return; }
+ const vals=pts.map(p=>p.v);
+ let dMin=Math.min(...vals),dMax=Math.max(...vals);
+ const ths=S.th().filter(t=>t[0]!=null&&t[0]>0);
+ // forceTh: el umbral se encuadra siempre (carga y corriente son fracciones
+ // de una capacidad; verlos sin su limite no dice nada)
+ ths.forEach(t=>{ if(S.forceTh||(t[0]<dMax*1.6&&t[0]>dMin*0.4)){ dMin=Math.min(dMin,t[0]); dMax=Math.max(dMax,t[0]); } });
+ const pad=Math.max((dMax-dMin)*0.25,Math.abs(dMax)*0.05)||1;
+ const yMin=dMin-pad,yMax=dMax+pad;
+ const x2=i=>padL+(W-padL-padR)*(pts.length>1?i/(pts.length-1):0.5);
+ const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+ ths.forEach(t=>{ if(t[0]<yMin||t[0]>yMax)return; const y=y2(t[0]);
+   g.strokeStyle=t[1];g.setLineDash([4,4]);g.globalAlpha=.55;
+   g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
+   g.fillStyle=t[1];g.textAlign='left';g.fillText(t[2],W-padR+4,y+3);});
+ g.fillStyle=C_MUT;g.textAlign='right';
+ for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(S.d),padL-6,y2(v)+3);}
+ g.strokeStyle=C_AZUL;g.lineWidth=2;g.lineJoin='round';g.lineCap='round';g.beginPath();
+ trazarSuave(g, pts.map((p,i)=>({x:x2(i),y:y2(Math.max(yMin,Math.min(yMax,p.v)))})));
+ g.stroke();
+ const last=pts[pts.length-1];
+ g.fillStyle=SERIE==='carga'?colorCarga(last.v):(SERIE==='fp'?colorFp(last.v):C_AZUL);
+ g.beginPath();g.arc(x2(pts.length-1),y2(Math.max(yMin,Math.min(yMax,last.v))),4,0,7);g.fill();
+ g.textAlign='right';g.fillText(last.v.toFixed(S.d),W-padR-8,y2(Math.max(yMin,Math.min(yMax,last.v)))-8);
+ g.fillStyle=C_MUT;g.textAlign='left';g.fillText(pts[0].ts.substring(11,16),padL,Hh-8);
+ g.fillText(S.lbl,padL+70,Hh-8);
+ g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+
+ if(hi!=null&&hi>=0&&hi<pts.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,pts[hi].v)));
+   g.strokeStyle='rgba(22,28,38,.28)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle=C_SUP;g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle=C_AZUL;g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ G2={W:W,padL:padL,padR:padR,n:pts.length,pts:pts,dec:S.d,lbl:S.lbl,redraw:i=>drawChart2(i)};
+}
+
+// ---- frecuencia: autoescala estrecha (con 0-60 la linea seria plana) ----
+let GF=null, FPTS=[];
+function estadoFreq(f){
+  if(f==null||!TH)return 'SIN-DATO';
+  const d=Math.abs(f-(TH.FreqNom||60));
+  if(d>(TH.Freq_alarm||0.5))return 'SEVERO';
+  if(d>(TH.Freq_warn||0.15))return 'ATENCION';
+  if(d>(TH.Freq_normal||0.05))return 'FUERA-BANDA';
+  return 'NORMAL';
+}
+function colorFreq(f){
+  const e=estadoFreq(f);
+  if(e==='SEVERO')return C_BAD; if(e==='ATENCION')return C_WARN;
+  if(e==='FUERA-BANDA')return C_WARN; if(e==='SIN-DATO')return C_MUT; return C_OK;
+}
+function drawChartF(hi){
+ const cv=$('chartF'); if(!cv||!TH)return;
+ const dpr=window.devicePixelRatio||1, W=cv.clientWidth, Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh); g.font='10px Segoe UI';
+ const pts=FPTS;
+ if(pts.length<2){ g.fillStyle=C_MUT;g.textAlign='center';g.fillText('Sin datos de frecuencia todavia',W/2,Hh/2); GF=null; return; }
+ const padL=52,padR=104,padT=14,padB=26, NOMF=TH.FreqNom||60;
+ const vals=pts.map(p=>p.f);
+ let dMin=Math.min(...vals),dMax=Math.max(...vals);
+ // margen minimo de +/-0.05 Hz alrededor del nominal: si el rango medido
+ // es muy estrecho, un autoescala pura exageraria el ruido
+ const nb=TH.Freq_normal||0.05;
+ dMin=Math.min(dMin,NOMF-nb); dMax=Math.max(dMax,NOMF+nb);
+ const pad=Math.max((dMax-dMin)*0.25,0.01);
+ const yMin=dMin-pad,yMax=dMax+pad;
+ const x2=i=>padL+(W-padL-padR)*(pts.length>1?i/(pts.length-1):.5);
+ const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+ // banda normal sombreada
+ const yb1=y2(Math.min(NOMF+nb,yMax)), yb0=y2(Math.max(NOMF-nb,yMin));
+ g.fillStyle='rgba(18,144,58,.09)'; g.fillRect(padL,yb1,W-padL-padR,yb0-yb1);
+ [[NOMF+nb,C_OK,'Normal +0.05'],[NOMF,C_MUT,'60.00 Hz'],[NOMF-nb,C_OK,'Normal -0.05'],
+  [NOMF+(TH.Freq_warn||0.15),C_WARN,'Atencion +0.15'],[NOMF-(TH.Freq_warn||0.15),C_WARN,'Atencion -0.15']].forEach(l=>{
+   if(l[0]<yMin||l[0]>yMax)return; const y=y2(l[0]);
+   g.strokeStyle=l[1];g.setLineDash([4,4]);g.globalAlpha=.55;
+   g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
+   g.fillStyle=l[1];g.textAlign='left';g.fillText(l[2],W-padR+4,y+3);});
+ g.fillStyle=C_MUT;g.textAlign='right';
+ for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(3),padL-6,y2(v)+3);}
+ g.strokeStyle=C_AZUL;g.lineWidth=2;g.lineJoin='round';g.lineCap='round';g.beginPath();
+ trazarSuave(g, pts.map((p,i)=>({x:x2(i),y:y2(Math.max(yMin,Math.min(yMax,p.f)))})));
+ g.stroke();
+ const last=pts[pts.length-1], ly=y2(Math.max(yMin,Math.min(yMax,last.f)));
+ g.fillStyle=C_SUP;g.beginPath();g.arc(x2(pts.length-1),ly,6.5,0,7);g.fill();
+ g.fillStyle=colorFreq(last.f);g.beginPath();g.arc(x2(pts.length-1),ly,4.5,0,7);g.fill();
+ g.fillStyle=C_MUT;g.textAlign='left';g.fillText(pts[0].ts.substring(11,16),padL,Hh-8);
+ g.textAlign='right';g.fillText(last.ts.substring(11,16),W-padR,Hh-8);
+ if(hi!=null&&hi>=0&&hi<pts.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,pts[hi].f)));
+   g.strokeStyle='rgba(22,28,38,.28)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle=C_SUP;g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle=colorFreq(pts[hi].f);g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ GF={W:W,padL:padL,padR:padR,n:pts.length,pts:pts,redraw:i=>drawChartF(i)};
+}
+function actualizarFrecuencia(L,H){
+ FPTS=(H||[]).filter(h=>h.freq!=null).map(h=>({ts:h.ts,f:h.freq}));
+ const NOMF=(TH&&TH.FreqNom)||60, nb=(TH&&TH.Freq_normal)||0.05;
+ $('f-act').innerHTML=(L.freq!=null?L.freq.toFixed(3):'--')+'<span class="u">Hz</span>';
+ $('f-act').style.color=colorFreq(L.freq);
+ const pe=$('f-est'); const ef=estadoFreq(L.freq);
+ pe.textContent=({'NORMAL':'Normal','FUERA-BANDA':'Fuera de banda','ATENCION':'Atencion','SEVERO':'Severo','SIN-DATO':'Sin dato'})[ef];
+ pe.className='pill '+(ef==='NORMAL'?'s-NORMAL':(ef==='SEVERO'?'s-AL':'s-PRE'));
+ if(FPTS.length){
+   const v=FPTS.map(p=>p.f);
+   $('f-minmax').textContent=Math.min(...v).toFixed(3)+' / '+Math.max(...v).toFixed(3);
+   $('f-desv').innerHTML=(v.reduce((a,b)=>a+Math.abs(b-NOMF),0)/v.length).toFixed(4)+'<span class="u">Hz</span>';
+   const dentro=v.filter(f=>Math.abs(f-NOMF)<=nb).length;
+   $('f-pct').innerHTML=(dentro/v.length*100).toFixed(1)+'<span class="u">%</span>';
+ }
+ drawChartF();
+}
+
+// ---- grafico de armonicos: 3 modos en un mismo lienzo ----
+let G3=null, ARM='fases';
+function drawChart3(hi){
+ const cv=$('chart3'); if(!cv||!TH)return;
+ const dpr=window.devicePixelRatio||1;
+ const W=cv.clientWidth,Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh);
+ g.font='10px Segoe UI';
+ const padL=44,padR=104,padT=14,padB=26;
+ const sinDatos=t=>{g.fillStyle=C_MUT;g.textAlign='center';g.fillText(t,W/2,Hh/2);G3=null;};
+ const umbrales=(y2,yMin,yMax)=>{
+   [[TH.THDV_warn||5,C_WARN,'IEEE 519 5%'],[TH.THDV_alarm||8,C_BAD,'Alarma 8%']].forEach(l=>{
+     if(l[0]<yMin||l[0]>yMax)return;const y=y2(l[0]);
+     g.strokeStyle=l[1];g.setLineDash([4,4]);g.globalAlpha=.55;
+     g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.globalAlpha=1;g.setLineDash([]);
+     g.fillStyle=l[1];g.textAlign='left';g.fillText(l[2],W-padR+4,y+3);});
+ };
+ if(ARM==='fases'){
+   const pts=VIS.filter(h=>h.thdv1!=null||h.thdv2!=null||h.thdv3!=null);
+   if(pts.length<2){sinDatos('Sin historico de armonicos todavia');return;}
+   const vals=[];pts.forEach(p=>['thdv1','thdv2','thdv3'].forEach(k=>{if(p[k]!=null)vals.push(p[k])}));
+   const dMin=Math.min(...vals),dMax=Math.max(...vals,TH.THDV_warn||5);
+   const pad=Math.max((dMax-dMin)*0.15,0.2),yMin=Math.max(0,dMin-pad),yMax=dMax+pad;
+   const x2=i=>padL+(W-padL-padR)*(pts.length>1?i/(pts.length-1):.5);
+   const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+   umbrales(y2,yMin,yMax);
+   g.fillStyle=C_MUT;g.textAlign='right';
+   for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(2),padL-6,y2(v)+3);}
+   // tres series categoricas: color + patron de linea distinto, para que
+   // se distingan tambien sin percibir el color
+   const S3=[['thdv1',C_AZUL,[]],['thdv2','#c2521c',[6,3]],['thdv3','#0f7d63',[2,2]]];
+   S3.forEach(s=>{g.strokeStyle=s[1];g.lineWidth=2;g.setLineDash(s[2]);g.beginPath();let st=false;
+     pts.forEach((p,i)=>{const v=p[s[0]];if(v==null)return;const px=x2(i),py=y2(v);
+       if(!st){g.moveTo(px,py);st=true}else g.lineTo(px,py);});
+     g.stroke();g.setLineDash([]);});
+   g.fillStyle=C_MUT;g.textAlign='left';g.fillText(pts[0].ts.substring(11,16),padL,Hh-8);
+   g.textAlign='right';g.fillText(pts[pts.length-1].ts.substring(11,16),W-padR,Hh-8);
+   if(hi!=null&&hi>=0&&hi<pts.length){
+     const cx=x2(hi);
+     g.strokeStyle='rgba(22,28,38,.28)';g.lineWidth=1;
+     g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+     S3.forEach(s=>{const v=pts[hi][s[0]];if(v==null)return;
+       g.fillStyle=C_SUP;g.beginPath();g.arc(cx,y2(v),6,0,7);g.fill();
+       g.fillStyle=s[1];g.beginPath();g.arc(cx,y2(v),4,0,7);g.fill();});
+   }
+   G3={W:W,padL:padL,padR:padR,n:pts.length,pts:pts,modo:'fases',redraw:i=>drawChart3(i)};
+ } else if(ARM==='scatter'){
+   const pts=VIS.filter(h=>h.thdi!=null&&h.carga!=null);
+   if(pts.length<2){sinDatos('Sin datos de THD I y carga todavia');return;}
+   let xMin=Math.min(...pts.map(p=>p.carga)),xMax=Math.max(...pts.map(p=>p.carga));
+   let yMinD=Math.min(...pts.map(p=>p.thdi)),yMaxD=Math.max(...pts.map(p=>p.thdi));
+   const padX=Math.max((xMax-xMin)*.12,1),padY=Math.max((yMaxD-yMinD)*.15,.3);
+   xMin-=padX;xMax+=padX;const yMin=Math.max(0,yMinD-padY),yMax=yMaxD+padY;
+   const x2=v=>padL+(W-padL-padR)*((v-xMin)/(xMax-xMin));
+   const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+   g.fillStyle=C_MUT;g.textAlign='right';
+   for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(1),padL-6,y2(v)+3);}
+   g.textAlign='center';
+   for(let k=0;k<=4;k++){const v=xMin+(xMax-xMin)*k/4;g.fillText(v.toFixed(0)+'%',x2(v),Hh-8);}
+   g.textAlign='left';g.fillText('eje X: carga %  |  eje Y: THD I %',W-padR+4,padT+3);
+   g.fillStyle=C_AZUL;g.globalAlpha=.7;
+   pts.forEach(p=>{g.beginPath();g.arc(x2(p.carga),y2(p.thdi),3.5,0,7);g.fill();});
+   g.globalAlpha=1;
+   const last=pts[pts.length-1];
+   g.fillStyle=C_SUP;g.beginPath();g.arc(x2(last.carga),y2(last.thdi),7,0,7);g.fill();
+   g.fillStyle=C_WARN;g.beginPath();g.arc(x2(last.carga),y2(last.thdi),4.5,0,7);g.fill();
+   g.fillStyle=C_MUT;g.textAlign='left';
+   g.fillText('ultima muestra en amarillo',W-padR+4,padT+16);
+   G3={modo:'scatter'};
+ } else {
+   const L=LIVE;
+   const grupos=[['Fase 1',L&&L.thdv1,L&&L.thdi1],['Fase 2',L&&L.thdv2,L&&L.thdi2],['Fase 3',L&&L.thdv3,L&&L.thdi3]];
+   const vals=grupos.flatMap(x=>[x[1],x[2]]).filter(v=>v!=null);
+   if(!vals.length){sinDatos('Sin lectura de armonicos todavia');return;}
+   const yMin=0,yMax=Math.max(...vals,TH.THDV_alarm||8)*1.18;
+   const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+   umbrales(y2,yMin,yMax);
+   g.fillStyle=C_MUT;g.textAlign='right';
+   for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText(v.toFixed(1),padL-6,y2(v)+3);}
+   const area=W-padL-padR,bw=26,gap=10;
+   grupos.forEach((gr,i)=>{
+     const cx=padL+area*(i+0.5)/3;
+     [[gr[1],C_AZUL,-1],[gr[2],'#c2521c',1]].forEach(b=>{
+       if(b[0]==null)return;
+       const x=cx+(b[2]<0?-(bw+gap/2):gap/2), y=y2(b[0]);
+       g.fillStyle=b[1];g.fillRect(x,y,bw,(Hh-padB)-y);
+       g.fillStyle='#161c26';g.textAlign='center';g.fillText(b[0].toFixed(2),x+bw/2,y-4);
+     });
+     g.fillStyle=C_MUT;g.textAlign='center';g.fillText(gr[0],cx,Hh-8);
+   });
+   G3={modo:'barras'};
+ }
+}
+[['arm-fases','fases'],['arm-scatter','scatter'],['arm-barras','barras']].forEach(([id,modo])=>{
+  $(id).addEventListener('click',()=>{
+    ['arm-fases','arm-scatter','arm-barras'].forEach(x=>$(x).classList.remove('on'));
+    $(id).classList.add('on'); ARM=modo;
+    $('ley-fases').style.display=(modo==='fases')?'flex':'none';
+    $('ley-barras').style.display=(modo==='barras')?'flex':'none';
+    drawChart3();
+  });
+});
+
+// ---- capa de lectura: cruceta + globo con el valor exacto ----
+// La guia lo pide por defecto: un grafico HTML es interactivo, y el globo
+// nunca es la unica via al dato (la tabla de abajo lo repite).
+function enlazarHover(idCanvas,idTip,geo,fmt){
+ const cv=$(idCanvas),tip=$(idTip);
+ const mover=e=>{
+   // mientras se arrastra para acercarse, la cruceta estorba
+   if(ARRASTRANDO){ tip.classList.remove('on'); return; }
+   const g=geo(); if(!g||!g.n){return;}
+   const r=cv.getBoundingClientRect(), ancho=g.W-g.padL-g.padR;
+   let i=Math.round((e.clientX-r.left-g.padL)/ancho*(g.n-1));
+   i=Math.max(0,Math.min(g.n-1,i));
+   g.redraw(i);
+   const px=g.padL+ancho*(g.n>1?i/(g.n-1):.5);
+   tip.innerHTML=fmt(i); tip.classList.add('on');
+   let left=px+14; if(left+tip.offsetWidth>g.W-6) left=px-tip.offsetWidth-14;
+   tip.style.left=Math.max(6,left)+'px'; tip.style.top='16px';
+ };
+ cv.addEventListener('mousemove',mover);
+ cv.addEventListener('mouseleave',()=>{ tip.classList.remove('on'); const g=geo(); if(g)g.redraw(-1); });
+}
+
+enlazarHover('chart','tip1',()=>G1,i=>{
+ const h=VIS[i]; if(!h)return '';
+ return `<b>${kv(h.v)} kV</b> <span class="k">(${h.pct!=null?h.pct.toFixed(1):'--'}% Un)</span><br>`+
+        `<span class="k">${h.ts.substring(11)}</span> &middot; ${h.estado}<br>`+
+        `<span class="k">I</span> ${n(h.i,1)} A &nbsp; <span class="k">P</span> ${n(h.kw,0)} kW &nbsp; <span class="k">FP</span> ${n(h.fp,3)}`;
+});
+enlazarHover('chart2','tip2',()=>G2,i=>{
+ const g=G2; if(!g||!g.pts[i])return '';
+ const p=g.pts[i];
+ return `<b>${p.v.toFixed(g.dec)}</b><br><span class="k">${g.lbl}</span><br><span class="k">${p.ts.substring(11)}</span>`;
+});
+// la cruceta solo aplica al modo de lineas por fase; los otros dos modos
+// no tienen puntos equiespaciados en X
+enlazarHover('chart3','tip3',()=>(G3&&G3.modo==='fases')?G3:null,i=>{
+ const p=G3&&G3.pts?G3.pts[i]:null; if(!p)return '';
+ return `<b>V1 ${n(p.thdv1,2)} &middot; V2 ${n(p.thdv2,2)} &middot; V3 ${n(p.thdv3,2)} %</b><br>`+
+        `<span class="k">THD tension &middot; ${p.ts.substring(11)}</span>`;
+});
+
+// ---- informe de operacion: vive en su propia pagina (reporte.html).
+// Aqui solo se consulta si existe y de cuando es, para no descargar los
+// 13 KB del markdown en cada carga del tablero.
+async function metaReporte(){
+  try{
+    const r=await fetch('reporte.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('aun no publicado');
+    const d=await r.json();
+    const partes=[];
+    if(d.fecha_diario) partes.push('diario del '+d.fecha_diario);
+    if(d.fecha_semanal) partes.push('semanal del '+d.fecha_semanal);
+    $('rep-meta').textContent = partes.length
+      ? 'Disponibles: '+partes.join(' - ')
+      : 'Aun no se ha generado ningun informe.';
+  }catch(e){ $('rep-meta').textContent='Informe no disponible: '+e.message; }
+}
+metaReporte(); setInterval(metaReporte,900000);
+
+// ================== CONSULTA HISTORICA ==================
+// GitHub Pages es estatico: no hay endpoint que consultar. Se descarga
+// historia.json (7 dias en buckets de 5 min con banda min-max) UNA vez
+// y todo el filtrado por fecha ocurre aqui, en el navegador.
+let HDATA=null, HSEL=[], HCAMPO='VllAvg', GH=null;
+const H_UNI={VllAvg:'kV',Freq:'Hz',Iavg:'A',kW:'kW',kVAR:'kVAR',FP:'',Desbal:'%',Idesbal:'%',PctCarga:'%'};
+const H_ESC={VllAvg:1000};
+const H_DEC={VllAvg:2,Freq:3,FP:3,Desbal:2,Idesbal:2,PctCarga:1,Iavg:1,kW:0,kVAR:0};
+const H_MM=['VllAvg','Freq','PctCarga'];
+function fmtLocal(d){const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());}
+function setRangoHoras(h){const a=new Date();$('h-hasta').value=fmtLocal(a);
+  $('h-desde').value=fmtLocal(new Date(a.getTime()-h*3600000));}
+function tsANum(s){ return new Date(s.replace(' ','T')).getTime(); }
+
+async function cargarHistoria(){
+  try{
+    const r=await fetch('historia.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('historia.json aun no publicado');
+    HDATA=await r.json();
+    filtrarHistoria();
+  }catch(e){ $('h-info').textContent='Historico no disponible: '+e.message; }
+}
+function filtrarHistoria(){
+  if(!HDATA)return;
+  const d=tsANum($('h-desde').value.replace('T',' ')), h=tsANum($('h-hasta').value.replace('T',' '));
+  HSEL=HDATA.puntos.filter(p=>{const t=tsANum(p.ts);return t>=d&&t<=h;});
+  const evs=(HDATA.eventos||[]).filter(e=>{const t=tsANum(e.desde);return t>=d&&t<=h;});
+  const n=HSEL.reduce((a,p)=>a+p.n,0), err=HSEL.reduce((a,p)=>a+p.err,0);
+  $('h-info').textContent = HSEL.length
+    ? HSEL.length+' intervalos de '+HDATA.bucket_min+' min ('+n+' muestras) entre '+
+      HSEL[0].ts+' y '+HSEL[HSEL.length-1].ts
+    : 'Sin datos en ese rango. El historico publicado abarca '+HDATA.desde+' a '+HDATA.hasta+'.';
+  $('h-disp').textContent = n
+    ? 'Disponibilidad del medidor en el rango: '+((n-err)/n*100).toFixed(2)+'% ('+(n-err)+' de '+n+' muestras) - '+evs.length+' evento(s)'
+    : '';
+  const tb=$('h-eventos'); tb.innerHTML='';
+  if(!evs.length){ tb.innerHTML='<tr><td colspan="5" style="color:var(--mut)">Sin eventos: todo el periodo en estado normal.</td></tr>'; }
+  evs.forEach(e=>{
+    const col=(e.estado.indexOf('TRIP')>=0||e.estado.indexOf('ALARMA')>=0)?C_BAD:(e.estado.indexOf('PRE')>=0?C_WARN:C_MUT);
+    const mins=((tsANum(e.hasta)-tsANum(e.desde))/60000).toFixed(1);
+    const ext=e.extremo!=null?(Math.abs(e.extremo)>1000?(e.extremo/1000).toFixed(2)+' kV':e.extremo.toFixed(2)):'--';
+    const tr=document.createElement('tr'); tr.className='ev';
+    tr.innerHTML='<td>'+e.desde+'</td><td><span class="dot" style="background:'+col+'"></span>'+etiq(e.estado)+'</td>'+
+      '<td>'+mins+' min</td><td>'+e.muestras+'</td><td>'+ext+'</td>';
+    tr.addEventListener('click',()=>{
+      const t=new Date(e.desde.replace(' ','T'));
+      $('h-desde').value=fmtLocal(new Date(t.getTime()-15*60000));
+      $('h-hasta').value=fmtLocal(new Date(t.getTime()+15*60000));
+      document.querySelectorAll('#atajos .tab').forEach(x=>x.classList.remove('on'));
+      filtrarHistoria();
+    });
+    tb.appendChild(tr);
+  });
+  drawChartH();
+}
+function drawChartH(hi){
+ const cv=$('chartH'); if(!cv)return;
+ const dpr=window.devicePixelRatio||1, W=cv.clientWidth, Hh=cv.clientHeight;
+ cv.width=W*dpr;cv.height=Hh*dpr;const g=cv.getContext('2d');g.scale(dpr,dpr);
+ g.clearRect(0,0,W,Hh); g.font='10px Segoe UI';
+ if(HSEL.length<2){ g.fillStyle=C_MUT;g.textAlign='center';g.fillText('Sin datos en el rango consultado',W/2,Hh/2); GH=null; return; }
+ const c=HCAMPO, esc=H_ESC[c]||1, dec=H_DEC[c]!=null?H_DEC[c]:2, mm=H_MM.indexOf(c)>=0;
+ const padL=58,padR=18,padT=14,padB=26;
+ let dMin=Infinity,dMax=-Infinity;
+ HSEL.forEach(p=>[p[c],p[c+'_mn'],p[c+'_mx']].forEach(v=>{if(v!=null){if(v<dMin)dMin=v;if(v>dMax)dMax=v;}}));
+ if(dMin===Infinity){ g.fillStyle=C_MUT;g.textAlign='center';g.fillText('Sin valores para esta magnitud',W/2,Hh/2); GH=null; return; }
+ const pad=Math.max((dMax-dMin)*0.12,Math.abs(dMax)*0.002)||1, yMin=dMin-pad, yMax=dMax+pad;
+ const x2=i=>padL+(W-padL-padR)*(HSEL.length>1?i/(HSEL.length-1):.5);
+ const y2=v=>padT+(Hh-padT-padB)*(1-(v-yMin)/(yMax-yMin));
+ g.strokeStyle=C_GRID;g.lineWidth=1;
+ for(let k=0;k<=4;k++){const y=y2(yMin+(yMax-yMin)*k/4);g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();}
+ // banda min-max: sin ella un pico de 5 min desaparece tras el promedio
+ if(mm){
+   g.fillStyle='rgba(31,111,208,.13)'; g.beginPath();
+   trazarSuave(g, HSEL.map((p,i)=>({x:x2(i),y:y2(p[c+'_mx']!=null?p[c+'_mx']:p[c])})));
+   for(let i=HSEL.length-1;i>=0;i--){const v=HSEL[i][c+'_mn']!=null?HSEL[i][c+'_mn']:HSEL[i][c];g.lineTo(x2(i),y2(v));}
+   g.closePath(); g.fill();
+ }
+ g.fillStyle=C_MUT;g.textAlign='right';
+ for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;g.fillText((v/esc).toFixed(dec),padL-6,y2(v)+3);}
+ g.strokeStyle=C_AZUL;g.lineWidth=2;g.lineJoin='round';g.lineCap='round';g.beginPath();
+ trazarSuave(g, HSEL.map((p,i)=>({x:x2(i),y:y2(Math.max(yMin,Math.min(yMax,p[c])))})));
+ g.stroke();
+ // marcas donde hubo muestras sin lectura
+ g.fillStyle=C_BAD;
+ HSEL.forEach((p,i)=>{ if(p.err>0){ g.globalAlpha=Math.min(1,p.err/Math.max(p.n,1)); g.fillRect(x2(i)-1,Hh-padB-3,2,3);} });
+ g.globalAlpha=1;
+ g.fillStyle=C_MUT;g.textAlign='left';g.fillText(HSEL[0].ts.substring(5),padL,Hh-8);
+ g.textAlign='center';g.fillText(c+(H_UNI[c]?' ('+(esc>1?'kV':H_UNI[c])+')':''),W/2,Hh-8);
+ g.textAlign='right';g.fillText(HSEL[HSEL.length-1].ts.substring(5),W-padR,Hh-8);
+ if(hi!=null&&hi>=0&&hi<HSEL.length){
+   const cx=x2(hi),cy=y2(Math.max(yMin,Math.min(yMax,HSEL[hi][c])));
+   g.strokeStyle='rgba(22,28,38,.28)';g.lineWidth=1;
+   g.beginPath();g.moveTo(cx,padT);g.lineTo(cx,Hh-padB);g.stroke();
+   g.fillStyle=C_SUP;g.beginPath();g.arc(cx,cy,7,0,7);g.fill();
+   g.fillStyle=C_AZUL;g.beginPath();g.arc(cx,cy,5,0,7);g.fill();
+ }
+ GH={W:W,padL:padL,padR:padR,n:HSEL.length,redraw:i=>drawChartH(i)};
+}
+document.querySelectorAll('#atajos .tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#atajos .tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); setRangoHoras(parseInt(b.dataset.h,10)); filtrarHistoria();
+}));
+document.querySelectorAll('#h-campos .tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#h-campos .tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); HCAMPO=b.dataset.c; drawChartH();
+}));
+$('h-buscar').addEventListener('click',filtrarHistoria);
+$('h-exportar').addEventListener('click',()=>{
+  if(!HSEL.length)return;
+  const cols=['ts','n','err'].concat(HDATA.campos);
+  const filas=[cols.join(',')].concat(HSEL.map(p=>cols.map(k=>p[k]!=null?p[k]:'').join(',')));
+  const url=URL.createObjectURL(new Blob([filas.join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url; a.download='monitoreo_'+HSEL[0].ts.replace(/[: -]/g,'')+'_'+HSEL[HSEL.length-1].ts.replace(/[: -]/g,'')+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+});
+enlazarHover('chartH','tipH',()=>GH,i=>{
+ const p=HSEL[i]; if(!p)return '';
+ const c=HCAMPO, esc=H_ESC[c]||1, dec=H_DEC[c]!=null?H_DEC[c]:2;
+ let s=`<b>${(p[c]/esc).toFixed(dec)} ${esc>1?'kV':(H_UNI[c]||'')}</b><br>`;
+ if(H_MM.indexOf(c)>=0&&p[c+'_mn']!=null) s+=`<span class="k">min ${(p[c+'_mn']/esc).toFixed(dec)} / max ${(p[c+'_mx']/esc).toFixed(dec)}</span><br>`;
+ s+=`<span class="k">${p.ts}</span>`;
+ if(p.err>0) s+=`<br><span class="k">${p.err} de ${p.n} sin lectura</span>`;
+ return s;
+});
+setRangoHoras(24);
+cargarHistoria(); setInterval(cargarHistoria,900000);   // se republica cada 15 min
+
+// ---- medidores de los generadores (CENACE). Va aparte del ciclo principal:
+// si su archivo aun no existe, el tablero del ION no debe verse afectado ----
+async function tickGen(){
+ try{
+  const r=await fetch('medidores.json?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok) throw new Error('sin publicar');
+  const d=await r.json(), s=d.resumen||{};
+  $('gen-resumen').textContent=`${s.total||0} medidores · ${s.enLinea||0} en linea · `+
+    `${s.enAviso||0} en aviso · ${s.fueraLinea||0} fuera de linea · ${s.enRevision||0} en revision`;
+  const tb=$('gen-tbody'); tb.innerHTML='';
+  (d.medidores||[]).forEach(m=>{
+    const cls='est e'+([1,2,3,4].includes(m.Estado)?m.Estado:4);
+    const ug=m.UltimoIntervalo||'--';
+    const d=m.DiasSinIntervalo;
+    const hace=d==null?'':` <span style="color:var(--mut)">(hace ${d<1?Math.round(d*24)+' h':d.toFixed(1)+' dias'})</span>`;
+    tb.innerHTML+=`<tr><td>${m.Etiqueta||''}</td><td>${m.Serial||''}</td>`+
+      `<td><span class="${cls}">${m.EstadoTxt||'--'}</span></td><td>${ug}${hace}</td></tr>`;
+  });
+ }catch(e){ $('gen-resumen').textContent='Datos de generadores aun no publicados.'; }
+}
+
+// ---- acercarse arrastrando sobre cualquier grafica en vivo ----------
+// Se reutiliza la geometria que cada grafico ya publica (G1/G2/GF/G3): el
+// indice bajo el cursor se traduce a marca de tiempo y de ahi sale la
+// ventana. Por eso funciona igual en las cuatro, aunque cada una filtre
+// sus propios puntos (frecuencia y armonicos descartan muestras sin dato).
+function enlazarZoom(idCanvas,geo){
+ const cv=$(idCanvas); if(!cv)return;
+ const banda=document.createElement('div'); banda.className='selband';
+ cv.parentElement.appendChild(banda);
+ let x0=null;
+ const xEn=e=>{
+   const r=cv.getBoundingClientRect();
+   const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0]);
+   return (t?t.clientX:e.clientX)-r.left;
+ };
+ const iEn=(g,x)=>{const ancho=g.W-g.padL-g.padR;
+   return Math.max(0,Math.min(g.n-1,Math.round((x-g.padL)/ancho*(g.n-1))));};
+ const abrir=e=>{
+   const g=geo(); if(!g||!g.n||!g.pts)return;
+   x0=xEn(e); ARRASTRANDO=true;
+   banda.style.display='block'; banda.style.left=x0+'px'; banda.style.width='0px';
+ };
+ const seguir=e=>{
+   if(x0==null)return; const x=xEn(e);
+   banda.style.left=Math.min(x0,x)+'px'; banda.style.width=Math.abs(x-x0)+'px';
+   // en tactil solo se secuestra el gesto cuando ya es claramente horizontal,
+   // para no bloquear el desplazamiento vertical de la pagina
+   if(e.touches&&e.cancelable&&Math.abs(x-x0)>8)e.preventDefault();
+ };
+ const cerrar=e=>{
+   if(x0==null)return;
+   const g=geo(), x1=xEn(e), ancho=Math.abs(x1-x0);
+   const xa=Math.min(x0,x1), xb=Math.max(x0,x1);
+   x0=null; ARRASTRANDO=false; banda.style.display='none';
+   if(!g||!g.pts||!g.n||ancho<14)return;      // un clic no es un zoom
+   const ia=iEn(g,xa), ib=iEn(g,xb);
+   if(ib-ia<2)return;                         // franja sin puntos suficientes
+   const t0=tms(g.pts[ia].ts), t1=tms(g.pts[ib].ts);
+   if(t1-t0<60000)return;                     // menos de 1 min no aporta nada
+   // Si la franja toca el borde derecho se entiende como "ver los ultimos
+   // N minutos" y sigue avanzando con cada dato nuevo. Si es una franja
+   // interior, se congela donde el usuario la dejo (esta mirando el pasado).
+   const tUlt=tms(HIST[HIST.length-1].ts);
+   if(tUlt-t1<=90000){ BASE_MIN=Math.max(1,Math.round((t1-t0)/60000)); VENT={min:BASE_MIN}; }
+   else { VENT={t0:t0,t1:t1}; }
+   aplicarVentana();
+ };
+ cv.addEventListener('mousedown',abrir);
+ cv.addEventListener('mousemove',seguir);
+ window.addEventListener('mouseup',cerrar);   // soltar fuera del lienzo tambien cierra
+ cv.addEventListener('touchstart',abrir,{passive:true});
+ cv.addEventListener('touchmove',seguir,{passive:false});
+ cv.addEventListener('touchend',cerrar);
+ cv.addEventListener('dblclick',()=>{ VENT={min:BASE_MIN}; aplicarVentana(); });
+}
+[['chart',()=>G1],['chart2',()=>G2],['chartF',()=>GF],
+ ['chart3',()=>((G3&&G3.modo==='fases')?G3:null)]].forEach(([id,geo])=>enlazarZoom(id,geo));
+
+// botones de ventana: 15 min / 30 min / 1 h / 3 h
+document.querySelectorAll('.tab[data-vent]').forEach(b=>b.addEventListener('click',()=>{
+  BASE_MIN=+b.dataset.vent; VENT={min:BASE_MIN}; aplicarVentana();
+}));
+$('vent-reset').addEventListener('click',()=>{ VENT={min:BASE_MIN}; aplicarVentana(); });
+
+// pestanas del segundo grafico (solo las que tienen data-serie)
+document.querySelectorAll('.tab[data-serie]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab[data-serie]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); SERIE=b.dataset.serie; drawChart2();
+}));
+// escala del grafico de tension
+[['esc-umbral','umbral'],['esc-detalle','detalle']].forEach(([id,modo])=>{
+  $(id).addEventListener('click',()=>{
+    $('esc-umbral').classList.toggle('on',modo==='umbral');
+    $('esc-detalle').classList.toggle('on',modo==='detalle');
+    // elegir escala a mano desactiva el cambio automatico al acercarse
+    ESCALA_MANUAL=true; ESCALA=modo; if(VIS.length)drawChart(VIS);
+  });
+});
+enlazarHover('chartF','tipF',()=>GF,i=>{
+ const p=FPTS[i]; if(!p)return '';
+ const NOMF=(TH&&TH.FreqNom)||60;
+ return `<b>${p.f.toFixed(3)} Hz</b> <span class="k">(${(p.f-NOMF>=0?'+':'')}${(p.f-NOMF).toFixed(3)})</span><br>`+
+        `<span class="k">${p.ts.substring(11)}</span>`;
+});
+window.addEventListener('resize',()=>{if(VIS.length){drawChart(VIS);drawChart2();drawChart3();drawChartF();}drawChartH();});
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
-tick(); setInterval(tick,30000);
+tick(); setInterval(tick,20000);   // se publica cada 3 min: 20 s recorta la cola de espera
+tickGen(); setInterval(tickGen,300000);   // los medidores cambian lento: cada 5 min basta
 </script>
 </body></html>
