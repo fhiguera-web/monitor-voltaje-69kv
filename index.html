@@ -186,6 +186,12 @@
  <div class="sub" id="clock">--:--:--</div>
 </header>
 <div class="wrap">
+ <div class="panel" id="sel-panel" style="padding:12px 16px">
+   <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+     <div class="tabs" id="sel-vista" style="margin:0"></div>
+     <div class="sub2" id="sel-info" style="margin:0"></div>
+   </div>
+ </div>
  <div class="aviso" id="aviso" hidden></div>
  <div class="grid">
    <div class="card big"><div class="lbl">Tension linea-linea (Vll avg)</div>
@@ -200,6 +206,7 @@
  <div class="grid">
    <div class="card big"><div class="lbl">Carga <span id="c-cap" class="u"></span></div>
      <div class="val" id="v-carga">--<span class="u">%</span></div>
+     <div class="sub2" id="v-cargakva">--</div>
      <span class="pill" id="v-estcarga">--</span>
      <div class="bar"><div class="bar-f" id="v-bar"></div></div></div>
    <div class="card"><div class="lbl">Corriente (I avg)</div><div class="val" id="v-i">--<span class="u">A</span></div>
@@ -240,6 +247,27 @@
      <button class="tab" data-serie="i">Corriente A</button><button class="tab" data-serie="fp">Factor de potencia</button>
      <button class="tab" data-serie="thdv">THD V %</button><button class="tab" data-serie="thdi">THD I %</button></div>
    <div class="cw"><canvas id="chart2"></canvas><div class="tip" id="tip2"></div></div></div>
+
+ <div class="panel" id="prot-panel"><h2>Margen a la proteccion</h2>
+   <div class="sub2" id="prot-rele">Sin datos de proteccion para esta vista.</div>
+   <div class="grid" style="margin:12px 0">
+     <div class="card"><div class="lbl">Corriente medida</div>
+       <div class="val" id="prot-i">--<span class="u">A</span></div></div>
+     <div class="card"><div class="lbl">Arranque del rele (50/51)</div>
+       <div class="val" id="prot-pkp">--<span class="u">A</span></div>
+       <div class="sub2" id="prot-pkppct">--</div></div>
+     <div class="card"><div class="lbl">Margen disponible</div>
+       <div class="val" id="prot-margen">--<span class="u">A</span></div>
+       <div class="sub2">antes de alcanzar el arranque</div></div>
+     <div class="card"><div class="lbl">Instantaneo (50)</div>
+       <div class="val" id="prot-inst">--<span class="u">A</span></div>
+       <div class="sub2" id="prot-instpct">--</div></div>
+   </div>
+   <div class="bar" style="height:10px"><div class="bar-f" id="prot-bar"></div></div>
+   <div class="sub2" id="prot-escala" style="margin-top:6px"></div>
+   <div class="sub2" id="prot-cc" style="margin-top:10px"></div>
+   <div class="sub2" id="prot-aviso" style="margin-top:8px;border-left:3px solid var(--yellow);
+        background:rgba(150,97,10,.08);border-radius:0 6px 6px 0;padding:8px 12px"></div></div>
 
  <div class="panel"><h2>Frecuencia</h2>
    <div class="grid" style="margin-bottom:14px">
@@ -338,6 +366,42 @@
 
 <script>
 let TH=null, NOM=69000, IN=0, HIST=[], SERIE='carga', LIVE=null;
+// Vista activa. Se recuerda en el navegador para que al recargar siga
+// donde estabas, y se puede enlazar directo con  ?v=planta1
+let DATOS=null;
+let VISTA=(new URLSearchParams(location.search).get('v'))||
+          (function(){ try{ return localStorage.getItem('vista'); }catch(e){ return null; } })()||'total';
+function pintarSelector(d){
+  if(!d.plantas){ $('sel-panel').hidden=true; return; }
+  const claves=Object.keys(d.plantas);
+  if(claves.indexOf(VISTA)<0) VISTA=d.vistaDefecto||claves[0];
+  const cont=$('sel-vista');
+  if(cont.childElementCount!==claves.length){
+    cont.innerHTML='';
+    claves.forEach(k=>{
+      const b=document.createElement('button');
+      b.className='tab'; b.dataset.v=k; b.textContent=d.plantas[k].nombre;
+      b.addEventListener('click',()=>{
+        VISTA=k;
+        try{ localStorage.setItem('vista',k); }catch(e){}
+        history.replaceState(null,'','?v='+k);
+        aplicarVista();
+      });
+      cont.appendChild(b);
+    });
+  }
+  [...cont.children].forEach(b=>b.classList.toggle('on',b.dataset.v===VISTA));
+  const P=d.plantas[VISTA];
+  $('sel-info').innerHTML = P.derivada
+    ? 'Sin medidor propio: se obtiene restando <b>Planta 2</b> del <b>Principal</b>. '+
+      'Las potencias activa y reactiva se restan; los kVA y la corriente se recomponen, porque son fasoriales.'
+    : 'Medidor '+P.medidor+' &middot; transformador '+P.nominalMVA+
+      (P.nominalMVA_onaf?('/'+P.nominalMVA_onaf):'')+' MVA (ONAN/ONAF)';
+}
+// Al conmutar se rehace el ciclo normal en vez de duplicar el render:
+// la peticion sale con revalidacion y Pages responde 304 sin cuerpo, asi
+// que cambiar de vista no descarga datos otra vez.
+function aplicarVista(){ tick(); }
 // Lee el data.json del mismo origen (GitHub Pages purga su CDN en cada publicacion).
 const DATA_URL='data.json';
 let CICLO=0;   // contador de refrescos: cada 10 se fuerza lectura de origen
@@ -456,9 +520,17 @@ async function tick(){
   const forzar=(CICLO++%10)===0;
   const r=await fetch(DATA_URL+(forzar?('?t='+Date.now()):''),{cache:forzar?'no-store':'no-cache'});
   const d=await r.json();
-  TH=d.thresholds; NOM=d.nominal; IN=d.iNominal||0;
-  $('c-cap').textContent=d.nominalMVA?('de '+d.nominalMVA+' MVA'):'';
-  const L=d.live; LIVE=L;
+  DATOS=d;
+  // Tres vistas sobre la misma barra: Principal (medidor .250), Planta 2
+  // (medidor .251) y Planta 1, que NO tiene medidor y sale de restar las
+  // dos anteriores. Al conmutar solo cambia de donde se leen los datos:
+  // todos los paneles y graficos se reusan tal cual.
+  pintarSelector(d);
+  const P = (d.plantas && d.plantas[VISTA]) ? d.plantas[VISTA] : d;
+  TH=P.thresholds||d.thresholds; NOM=d.nominal; IN=P.iNominal||d.iNominal||0;
+  const cap = P.nominalMVA ? ('de '+P.nominalMVA+' MVA'+(P.nominalMVA_onaf?(' / '+P.nominalMVA_onaf+' ONAF'):'')) : '';
+  $('c-cap').textContent=cap;
+  const L=P.live; LIVE=L;
   // Dos fallos distintos, dos avisos distintos:
   //  - el publicador dejo de subir  -> antiguedad del archivo
   //  - el medidor dejo de responder -> el archivo llega fresco, pero la
@@ -481,6 +553,16 @@ async function tick(){
   $('v-carga').innerHTML=n(L.carga,1)+'<span class="u">%</span>';
   $('v-carga').style.color=colorCarga(L.carga);
   const bf=$('v-bar'); bf.style.width=Math.min(100,Math.max(0,L.carga||0))+'%'; bf.style.background=colorCarga(L.carga);
+  // kVA medidos sobre la capacidad del transformador, con el margen libre.
+  // Los miles van con separador local para que 10567 se lea de un vistazo.
+  (function(){
+    const mil=x=>Math.round(x).toLocaleString('es-EC');
+    const cap=P.nominalkVA||0, kva=(L.kva!=null)?Math.abs(L.kva):null;
+    if(kva==null){ $('v-cargakva').textContent='--'; return; }
+    let t=mil(kva)+' kVA';
+    if(cap>0) t+=' de '+mil(cap)+' &middot; quedan '+mil(Math.max(0,cap-kva))+' kVA';
+    $('v-cargakva').innerHTML=t;
+  })();
   const pc=$('v-estcarga'); pc.textContent=etiq(L.estadoCarga); pc.className='pill '+estadoClass(L.estadoCarga);
   $('v-i').innerHTML=n(L.iavg,1)+'<span class="u">A</span>';
   $('v-ifases').textContent=n(L.ia,1)+' / '+n(L.ib,1)+' / '+n(L.ic,1)+' A'+(IN&&L.iavg!=null?'  ('+n(L.iavg/IN*100,0)+'% de In)':'');
@@ -518,7 +600,8 @@ async function tick(){
 
   $('foot').innerHTML='Ultima lectura: '+L.ts+' &middot; publicado: '+d.updated;
 
-  const H=d.history||[]; HIST=H;
+  actualizarProteccion(d,P,L);
+  const H=P.history||[]; HIST=H;
   aplicarVentana();   // recorta a la ventana elegida y redibuja las 4 graficas
   const tb=$('tbody'); tb.innerHTML='';
   H.slice(-12).reverse().forEach(h=>{
@@ -951,6 +1034,47 @@ enlazarHover('chart3','tip3',()=>(G3&&G3.modo==='fases')?G3:null,i=>{
  return `<b>V1 ${n(p.thdv1,2)} &middot; V2 ${n(p.thdv2,2)} &middot; V3 ${n(p.thdv3,2)} %</b><br>`+
         `<span class="k">THD tension &middot; ${p.ts.substring(11)}</span>`;
 });
+
+
+// ---- margen a la proteccion -------------------------------------------
+// Compara la corriente de carga con el arranque del rele que protege ese
+// punto, segun el estudio de coordinacion de enero 2026. Es conciencia de
+// margen, NO verificacion de la proteccion: el rele opera sobre valores
+// instantaneos en milisegundos y aqui se mira un promedio de 10 s.
+function actualizarProteccion(d,P,L){
+  const R=P&&P.rele;
+  const panel=$('prot-panel');
+  if(!R||!R.fase||L.iavg==null){ panel.hidden=true; return; }
+  panel.hidden=false;
+  const i=Math.abs(L.iavg), pkp=R.fase.pickup_A, inst=R.fase.inst_A;
+  const pct=pkp>0?(i/pkp*100):0;
+  $('prot-rele').innerHTML='<b>'+R.nombre+'</b> &middot; '+R.ubicacion+
+    ' &middot; curva '+R.fase.curva+', dial '+R.fase.dial+
+    (R.neutro&&R.neutro.pickup_A?(' &middot; neutro '+R.neutro.pickup_A+' A'):'');
+  $('prot-i').innerHTML=n(i,1)+'<span class="u">A</span>';
+  $('prot-pkp').innerHTML=n(pkp,0)+'<span class="u">A</span>';
+  $('prot-pkppct').textContent=n(pct,1)+' % del arranque';
+  const m=pkp-i;
+  $('prot-margen').innerHTML=n(m,0)+'<span class="u">A</span>';
+  $('prot-margen').style.color = pct>=90?C_BAD : (pct>=75?C_WARN:C_OK);
+  $('prot-pkp').style.color = $('prot-margen').style.color;
+  if(inst){ $('prot-inst').innerHTML=n(inst,0)+'<span class="u">A</span>';
+            $('prot-instpct').textContent=n(i/inst*100,1)+' % del instantaneo'; }
+  else { $('prot-inst').innerHTML='--'; $('prot-instpct').textContent='no ajustado'; }
+  const bf=$('prot-bar');
+  bf.style.width=Math.min(100,Math.max(0,pct))+'%';
+  bf.style.background=$('prot-margen').style.color;
+  $('prot-escala').innerHTML='La barra va de 0 al arranque ('+n(pkp,0)+' A). '+
+    'Por encima del arranque el rele empieza a temporizar segun su curva; '+
+    'el disparo instantaneo esta en '+(inst?n(inst,0)+' A':'no ajustado')+'.';
+  if(d.cortocircuito&&d.cortocircuito.actual){
+    const c=d.cortocircuito;
+    $('prot-cc').innerHTML='<b>Cortocircuito en el punto de entrega:</b> '+
+      c.actual.if3f_kA+' kA trifasico ('+c.actual.condicion+'), '+c.actual.if1f_kA+' kA monofasico. '+
+      (c.anterior?('Antes era '+c.anterior.if3f_kA+' kA: '+c.comentario):'');
+  }
+  $('prot-aviso').innerHTML='<b>Alcance:</b> '+(d.protAdvertencia||'');
+}
 
 // ---- informe de operacion: vive en su propia pagina (reporte.html).
 // Aqui solo se consulta si existe y de cuando es, para no descargar los
